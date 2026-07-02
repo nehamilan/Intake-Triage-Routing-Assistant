@@ -346,6 +346,8 @@ function Index() {
         aiRuling: r,
         finalDecision: final,
         overridden: false,
+        reviewer: reviewer.trim(),
+        revision: 1,
       });
       setBatchProgress({ done: i + 1, total });
     }
