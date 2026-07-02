@@ -533,24 +533,26 @@ function Index() {
 
 
 
-                <button
-                  type="button"
-                  onClick={handleTriage}
-                  disabled={
-                    requestText.trim().length === 0 ||
-                    isClassifying ||
-                    batchProgress !== null
-                  }
-                  className="inline-flex w-full items-center justify-center gap-2 bg-primary py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground shadow-sm transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {isClassifying ? (
-                    <>
-                      <Spinner /> Classifying…
-                    </>
-                  ) : (
-                    "Triage Request"
-                  )}
-                </button>
+                {reviewingItem ? null : (
+                  <button
+                    type="button"
+                    onClick={handleTriage}
+                    disabled={
+                      requestText.trim().length === 0 ||
+                      isClassifying ||
+                      batchProgress !== null
+                    }
+                    className="inline-flex w-full items-center justify-center gap-2 bg-primary py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground shadow-sm transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isClassifying ? (
+                      <>
+                        <Spinner /> Classifying…
+                      </>
+                    ) : (
+                      "Triage Request"
+                    )}
+                  </button>
+                )}
 
                 {classifyError ? (
                   <div
