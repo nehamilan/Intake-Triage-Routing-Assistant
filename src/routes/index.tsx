@@ -501,20 +501,30 @@ function Index() {
   };
 
 
-  // Counters reflect current versions only — superseded revisions stay in the
-  // log but shouldn't inflate the escalated / auto-routed totals.
+  // Counters and the queue table both reflect current versions only —
+  // superseded revisions stay in the log but shouldn't inflate KPIs and
+  // shouldn't show up as their own rows in the table.
   const currentQueue = processedQueue.filter((q) => !q.supersededById);
-  const supersededCount = processedQueue.length - currentQueue.length;
+  const revisionCount = processedQueue.length - currentQueue.length;
   const escalatedCount = currentQueue.filter(
     (q) => q.finalDecision.status !== "auto_routed",
   ).length;
   const autoRoutedCount = currentQueue.length - escalatedCount;
+  const overriddenCount = currentQueue.filter((q) => q.overridden).length;
 
   const reviewingItem = reviewingId
     ? processedQueue.find((q) => q.id === reviewingId) ?? null
     : null;
   const isSupersededView =
     reviewingItem !== null && reviewingItem.supersededById !== undefined;
+  // Full revision chain for the request currently open in the workspace,
+  // newest first. Drives the audit timeline below the Decision Card.
+  const revisionHistory: QueueItem[] = reviewingItem
+    ? processedQueue
+        .filter((q) => q.rootId === reviewingItem.rootId)
+        .sort((a, b) => b.revision - a.revision)
+    : [];
+
 
   return (
     <div className="min-h-screen bg-background text-foreground">
