@@ -1291,7 +1291,65 @@ function DecisionSkeleton() {
 }
 
 
+// ---------- Embargo UI ----------
+
+function CalendarIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-3 w-3"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  );
+}
+
+function EmbargoRow({ embargo }: { embargo: import("@/lib/embargo").EmbargoDetection }) {
+  const hasDate = embargo.reason === "exact" && embargo.date;
+  return (
+    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-4">
+      <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        Embargo
+      </span>
+      <div className="flex flex-col gap-1 border-b border-border pb-2">
+        {hasDate ? (
+          <>
+            <span className="inline-flex w-fit items-center gap-2 border border-green-300 bg-green-50 px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-widest text-green-800">
+              <CalendarIcon />
+              {embargo.date}
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              Release date parsed from: “{embargo.rawPhrase}”
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="inline-flex w-fit items-center gap-2 border border-amber-300 bg-amber-50 px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-widest text-amber-800">
+              <CalendarIcon />
+              Date missing
+            </span>
+            <span className="font-serif text-xs italic text-muted-foreground">
+              Requester wrote: “{embargo.rawPhrase ?? "embargo"}” — curator must
+              confirm an exact YYYY-MM-DD before release.
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ---------- Attachments UI ----------
+
+
 
 function PaperclipIcon() {
   return (
