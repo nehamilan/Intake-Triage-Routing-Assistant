@@ -809,6 +809,22 @@ function DecisionCard({
         </div>
       ) : null}
 
+      {attachments.length > 0 ? (
+        <div className="border border-border bg-muted/40 p-3">
+          <div className="mb-2 flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            <PaperclipIcon />
+            Attachments ({attachments.length})
+          </div>
+          <AttachmentsList attachments={attachments} />
+          <p className="mt-2 font-serif text-xs italic text-muted-foreground">
+            The classifier saw only filenames and types — not the file
+            contents. A human should open each file before acting.
+          </p>
+        </div>
+      ) : null}
+
+
+
       <div className="grid grid-cols-[110px_minmax(0,1fr)] items-baseline gap-4">
         <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           Category
