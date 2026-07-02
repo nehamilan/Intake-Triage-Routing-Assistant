@@ -59,6 +59,7 @@ interface QueueItem {
   id: string;
   timestamp: number;
   requestText: string;
+  attachments: Attachment[];
   aiDecision: Decision;
   aiRuling: RuleResult;
   finalDecision: FinalDecision;
