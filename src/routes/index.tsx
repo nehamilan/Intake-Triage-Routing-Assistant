@@ -158,6 +158,11 @@ function Index() {
     }
   };
 
+  const newId = () =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : String(Date.now() + Math.random());
+
   const buildQueueItem = (
     text: string,
     atts: Attachment[],
@@ -165,11 +170,14 @@ function Index() {
     d: Decision,
     r: RuleResult,
     wasOverridden: boolean,
+    opts: {
+      reviewer: string;
+      revision: number;
+      supersedesId?: string;
+      id?: string;
+    },
   ): QueueItem => ({
-    id:
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : String(Date.now() + Math.random()),
+    id: opts.id ?? newId(),
     timestamp: Date.now(),
     requestText: text,
     attachments: atts,
@@ -177,25 +185,41 @@ function Index() {
     aiRuling: r,
     finalDecision: final,
     overridden: wasOverridden,
+    reviewer: opts.reviewer,
+    revision: opts.revision,
+    supersedesId: opts.supersedesId,
   });
 
   const handleFinalize = (final: FinalDecision, wasOverridden: boolean) => {
     if (!decision || !ruling) return;
-    if (reviewingId) {
-      setProcessedQueue((prev) =>
-        prev.map((q) =>
-          q.id === reviewingId
-            ? {
-                ...q,
-                timestamp: Date.now(),
-                attachments,
-                finalDecision: final,
-                overridden: wasOverridden || q.overridden,
-              }
-            : q,
-        ),
+    const reviewerName = reviewer.trim();
+    if (reviewingId && isRevising) {
+      // Append a new revision row and mark the predecessor as superseded.
+      // The pointer update on the previous row is the ONLY mutation to an
+      // existing queue entry — decisions themselves stay immutable.
+      const prev = processedQueue.find((q) => q.id === reviewingId);
+      if (!prev) return;
+      const newRow = buildQueueItem(
+        prev.requestText,
+        prev.attachments,
+        final,
+        decision,
+        ruling,
+        wasOverridden || prev.overridden,
+        {
+          reviewer: reviewerName,
+          revision: prev.revision + 1,
+          supersedesId: prev.id,
+        },
       );
+      setProcessedQueue((queue) => [
+        newRow,
+        ...queue.map((q) =>
+          q.id === prev.id ? { ...q, supersededById: newRow.id } : q,
+        ),
+      ]);
       setReviewingId(null);
+      setIsRevising(false);
       setActiveTab("queue");
     } else {
       setProcessedQueue((prev) => [
@@ -206,6 +230,7 @@ function Index() {
           decision,
           ruling,
           wasOverridden,
+          { reviewer: reviewerName, revision: 1 },
         ),
         ...prev,
       ]);
@@ -219,6 +244,7 @@ function Index() {
     setRuling(null);
     setClassifyError(null);
   };
+
 
   const handleLoadSample = (text: string, atts: Attachment[]) => {
     setRequestText(text);
