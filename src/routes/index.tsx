@@ -643,7 +643,13 @@ function Index() {
                     {isClassifying
                       ? "Consulting the classifier…"
                       : decision
-                        ? "Proposed decision — pending human review."
+                        ? reviewingItem
+                          ? isSupersededView
+                            ? `Superseded revision · v${reviewingItem.revision}.`
+                            : isRevising
+                              ? `Revising v${reviewingItem.revision} — saving will append v${reviewingItem.revision + 1}.`
+                              : `Finalized decision · v${reviewingItem.revision}.`
+                          : "Proposed decision — pending human review."
                         : "No request triaged yet."}
                   </p>
                 </div>
