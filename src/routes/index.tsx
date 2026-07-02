@@ -228,6 +228,26 @@ function Index() {
             <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2 lg:gap-12">
               {/* Input */}
               <section aria-labelledby="request-label" className="space-y-6">
+                {reviewingId ? (
+                  <div className="flex items-start justify-between gap-3 border border-purple-300 bg-purple-50/60 px-4 py-3">
+                    <div>
+                      <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800">
+                        Reviewing queued item
+                      </div>
+                      <div className="mt-0.5 font-serif text-sm italic text-purple-900">
+                        Accept or override to update the queue entry.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={cancelReview}
+                      className="border border-purple-300 bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800 hover:bg-purple-100"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : null}
+
                 <div className="flex flex-col gap-2">
                   <label
                     id="request-label"
@@ -259,6 +279,52 @@ function Index() {
                 >
                   Triage Request
                 </button>
+
+                {/* Sample batch controls */}
+                <div className="border-t border-dashed border-border pt-5">
+                  <div className="mb-3 flex items-baseline justify-between gap-3">
+                    <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                      Sample Corpus
+                    </span>
+                    <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                      {SAMPLE_REQUESTS.length} fixtures
+                    </span>
+                  </div>
+                  <p className="mb-3 font-serif text-xs italic text-muted-foreground">
+                    Hard-coded intake messages covering every category and each
+                    guardrail case. Load one into the editor, or triage the
+                    whole set at once and inspect the queue.
+                  </p>
+                  <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+                    <select
+                      aria-label="Load a sample request"
+                      value=""
+                      onChange={(e) => {
+                        const s = SAMPLE_REQUESTS.find(
+                          (x) => x.id === e.target.value,
+                        );
+                        if (s) handleLoadSample(s.text);
+                      }}
+                      className="flex-1 border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
+                    >
+                      <option value="" disabled>
+                        Load sample request…
+                      </option>
+                      {SAMPLE_REQUESTS.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleTriageAll}
+                      className="border border-foreground bg-background px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
+                    >
+                      Triage all
+                    </button>
+                  </div>
+                </div>
               </section>
 
               {/* Decision card */}
