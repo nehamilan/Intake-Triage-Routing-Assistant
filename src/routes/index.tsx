@@ -642,11 +642,32 @@ function Index() {
                   <DecisionSkeleton />
                 ) : decision && ruling ? (
                   <DecisionCard
-                    key={requestText.slice(0, 24) + processedQueue.length}
+                    key={
+                      (reviewingItem?.id ?? requestText.slice(0, 24)) +
+                      ":" +
+                      (reviewingItem?.revision ?? 0) +
+                      ":" +
+                      (isRevising ? "revising" : "view")
+                    }
                     decision={decision}
                     ruling={ruling}
                     attachments={attachments}
                     onFinalize={handleFinalize}
+                    mode={
+                      reviewingItem
+                        ? isSupersededView
+                          ? "superseded"
+                          : isRevising
+                            ? "revising"
+                            : "finalized"
+                        : "draft"
+                    }
+                    reviewer={reviewer}
+                    onReviewerChange={setReviewer}
+                    finalizedReviewer={reviewingItem?.reviewer}
+                    finalizedAt={reviewingItem?.timestamp}
+                    onReopen={startRevision}
+                    onCancelRevision={() => setIsRevising(false)}
                   />
                 ) : (
                   <EmptyDecisionState />
