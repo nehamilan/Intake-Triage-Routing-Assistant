@@ -292,6 +292,42 @@ function DecisionCard({
 
   return (
     <div className="space-y-5">
+      {/* Status banner — prominent */}
+      <div
+        className={`flex items-start gap-3 border px-4 py-3 ${statusStyle.badge}`}
+      >
+        <span
+          className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${statusStyle.dot}`}
+        />
+        <div className="flex-1">
+          <div className="font-mono text-[10px] font-bold uppercase tracking-widest">
+            Status
+          </div>
+          <div className="mt-0.5 font-serif text-base leading-tight">
+            {STATUS_LABELS[ruling.status]}
+          </div>
+        </div>
+      </div>
+
+      {/* Flags callout — shown only when guardrails fired */}
+      {ruling.flags.length > 0 ? (
+        <div className="border-l-4 border-purple-600 bg-purple-50/60 p-4">
+          <div className="mb-2 font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800">
+            Guardrail Flags
+          </div>
+          <ul className="space-y-1.5">
+            {ruling.flags.map((f) => (
+              <li
+                key={f}
+                className="font-serif text-sm leading-snug text-purple-900"
+              >
+                — {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-[110px_minmax(0,1fr)] items-baseline gap-4">
         <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           Category
@@ -313,13 +349,20 @@ function DecisionCard({
         </span>
       </div>
 
-      <div className="grid grid-cols-[110px_minmax(0,1fr)] items-baseline gap-4">
+      <div className="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-4">
         <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           Route
         </span>
-        <span className="border-b border-border pb-1 font-serif text-base text-foreground">
-          {decision.route}
-        </span>
+        <div className="flex flex-col gap-1 border-b border-border pb-1">
+          <span className="font-serif text-base text-foreground">
+            {ruling.finalRoute}
+          </span>
+          {routeOverridden ? (
+            <span className="font-mono text-[10px] uppercase tracking-widest text-purple-700">
+              Overrode model suggestion: {decision.route}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <div className="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-4">
@@ -330,6 +373,7 @@ function DecisionCard({
           {decision.reason}
         </p>
       </div>
+
 
       <div className="mt-8 border-t border-dashed border-border pt-6">
         <div className="mb-2 flex items-baseline justify-between">
