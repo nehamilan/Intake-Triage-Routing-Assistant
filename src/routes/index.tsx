@@ -569,58 +569,61 @@ function Index() {
                 ) : null}
 
                 {/* Sample batch controls */}
-                <div className="border-t border-dashed border-border pt-5">
-                  <div className="mb-3 flex items-baseline justify-between gap-3">
-                    <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                      Sample Corpus
-                    </span>
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                      {SAMPLE_REQUESTS.length} fixtures
-                    </span>
-                  </div>
-                  <p className="mb-3 font-serif text-xs italic text-muted-foreground">
-                    Hard-coded intake messages covering every category and each
-                    guardrail case. Load one into the editor, or triage the
-                    whole set at once and inspect the queue.
-                  </p>
-                  <div className="mb-4 flex flex-col gap-2 sm:flex-row">
-                    <select
-                      aria-label="Load a sample request"
-                      value=""
-                      disabled={isClassifying || batchProgress !== null}
-                      onChange={(e) => {
-                        const s = SAMPLE_REQUESTS.find(
-                          (x) => x.id === e.target.value,
-                        );
-                        if (s) handleLoadSample(s.text, [...s.attachments]);
-                      }}
-                      className="flex-1 border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none disabled:opacity-50"
-                    >
-                      <option value="" disabled>
-                        Load sample request…
-                      </option>
-                      {SAMPLE_REQUESTS.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.label}
+                {reviewingItem ? null : (
+                  <div className="border-t border-dashed border-border pt-5">
+                    <div className="mb-3 flex items-baseline justify-between gap-3">
+                      <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        Sample Corpus
+                      </span>
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                        {SAMPLE_REQUESTS.length} fixtures
+                      </span>
+                    </div>
+                    <p className="mb-3 font-serif text-xs italic text-muted-foreground">
+                      Hard-coded intake messages covering every category and
+                      each guardrail case. Load one into the editor, or triage
+                      the whole set at once and inspect the queue.
+                    </p>
+                    <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+                      <select
+                        aria-label="Load a sample request"
+                        value=""
+                        disabled={isClassifying || batchProgress !== null}
+                        onChange={(e) => {
+                          const s = SAMPLE_REQUESTS.find(
+                            (x) => x.id === e.target.value,
+                          );
+                          if (s) handleLoadSample(s.text, [...s.attachments]);
+                        }}
+                        className="flex-1 border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none disabled:opacity-50"
+                      >
+                        <option value="" disabled>
+                          Load sample request…
                         </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={handleTriageAll}
-                      disabled={isClassifying || batchProgress !== null}
-                      className="inline-flex items-center justify-center gap-2 border border-foreground bg-background px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {batchProgress ? (
-                        <>
-                          <Spinner /> {batchProgress.done}/{batchProgress.total}
-                        </>
-                      ) : (
-                        "Triage all"
-                      )}
-                    </button>
+                        {SAMPLE_REQUESTS.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleTriageAll}
+                        disabled={isClassifying || batchProgress !== null}
+                        className="inline-flex items-center justify-center gap-2 border border-foreground bg-background px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {batchProgress ? (
+                          <>
+                            <Spinner /> {batchProgress.done}/
+                            {batchProgress.total}
+                          </>
+                        ) : (
+                          "Triage all"
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </section>
 
               {/* Decision card */}
