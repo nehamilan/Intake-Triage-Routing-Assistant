@@ -150,7 +150,6 @@ function Index() {
                 {decision && ruling ? (
                   <DecisionCard decision={decision} ruling={ruling} />
                 ) : (
-                ) : (
                   <div className="space-y-5">
                     <DecisionRow label="Category" />
                     <DecisionRow label="Priority" />
