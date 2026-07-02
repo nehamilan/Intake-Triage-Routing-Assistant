@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   RULEBOOK,
   CATEGORY_LABELS,
@@ -16,6 +16,12 @@ import {
 } from "@/lib/apply-rules";
 import { SAMPLE_REQUESTS } from "@/lib/sample-requests";
 import { classifyRequest } from "@/lib/classify-request.functions";
+import {
+  type Attachment,
+  fileKindLabel,
+  formatBytes,
+  isImageMime,
+} from "@/lib/attachments";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -53,6 +59,7 @@ interface QueueItem {
   id: string;
   timestamp: number;
   requestText: string;
+  attachments: Attachment[];
   aiDecision: Decision;
   aiRuling: RuleResult;
   finalDecision: FinalDecision;
@@ -69,6 +76,7 @@ const AVAILABLE_ROUTES: readonly string[] = [
 
 function Index() {
   const [requestText, setRequestText] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [activeTab, setActiveTab] = useState<"triage" | "queue">("triage");
   const [decision, setDecision] = useState<Decision | null>(null);
   const [ruling, setRuling] = useState<RuleResult | null>(null);
@@ -85,6 +93,37 @@ function Index() {
   } | null>(null);
 
   const classify = useServerFn(classifyRequest);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Track object URLs we created for real, browser-picked files so we can
+  // revoke them when the workspace resets. We deliberately don't revoke
+  // when moving into the queue — the reviewer might reopen the item.
+  const workspaceObjectUrlsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    return () => {
+      // Best-effort cleanup on unmount.
+      for (const url of workspaceObjectUrlsRef.current) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, []);
+
+  const trackObjectUrl = (url: string) => {
+    workspaceObjectUrlsRef.current.push(url);
+  };
+
+  // Attachment metadata is safe to send to the server; bytes are not sent.
+  const attachmentMeta = (list: readonly Attachment[]) =>
+    list.map((a) => ({
+      filename: a.filename,
+      mimeType: a.mimeType,
+      sizeBytes: a.sizeBytes,
+    }));
 
   const handleTriage = async () => {
     const text = requestText.trim();
@@ -94,9 +133,11 @@ function Index() {
     setRuling(null);
     setIsClassifying(true);
     try {
-      const d = await classify({ data: { requestText: text } });
+      const d = await classify({
+        data: { requestText: text, attachments: attachmentMeta(attachments) },
+      });
       setDecision(d);
-      setRuling(applyRules(d, text));
+      setRuling(applyRules(d, text, attachments));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setClassifyError(message);
@@ -107,6 +148,7 @@ function Index() {
 
   const buildQueueItem = (
     text: string,
+    atts: Attachment[],
     final: FinalDecision,
     d: Decision,
     r: RuleResult,
@@ -118,6 +160,7 @@ function Index() {
         : String(Date.now() + Math.random()),
     timestamp: Date.now(),
     requestText: text,
+    attachments: atts,
     aiDecision: d,
     aiRuling: r,
     finalDecision: final,
@@ -133,6 +176,7 @@ function Index() {
             ? {
                 ...q,
                 timestamp: Date.now(),
+                attachments,
                 finalDecision: final,
                 overridden: wasOverridden || q.overridden,
               }
@@ -143,23 +187,73 @@ function Index() {
       setActiveTab("queue");
     } else {
       setProcessedQueue((prev) => [
-        buildQueueItem(requestText, final, decision, ruling, wasOverridden),
+        buildQueueItem(
+          requestText,
+          attachments,
+          final,
+          decision,
+          ruling,
+          wasOverridden,
+        ),
         ...prev,
       ]);
     }
-    // Reset the workspace for the next intake.
+    // Reset the workspace for the next intake. Keep the object URLs alive so
+    // the queue entry can still render its previews.
+    workspaceObjectUrlsRef.current = [];
     setRequestText("");
+    setAttachments([]);
     setDecision(null);
     setRuling(null);
     setClassifyError(null);
   };
 
-  const handleLoadSample = (text: string) => {
+  const handleLoadSample = (text: string, atts: Attachment[]) => {
     setRequestText(text);
+    setAttachments(atts);
     setDecision(null);
     setRuling(null);
     setReviewingId(null);
     setClassifyError(null);
+  };
+
+  const handleAddFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const additions: Attachment[] = [];
+    for (const file of Array.from(files)) {
+      const mime = file.type || "application/octet-stream";
+      let objectUrl: string | undefined;
+      if (isImageMime(mime)) {
+        objectUrl = URL.createObjectURL(file);
+        trackObjectUrl(objectUrl);
+      }
+      additions.push({
+        id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        filename: file.name,
+        mimeType: mime,
+        sizeBytes: file.size,
+        objectUrl,
+      });
+    }
+    setAttachments((prev) => [...prev, ...additions]);
+    // Reset input so the same file can be re-picked if the user removes it.
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleRemoveAttachment = (id: string) => {
+    setAttachments((prev) => {
+      const target = prev.find((a) => a.id === id);
+      if (target?.objectUrl) {
+        try {
+          URL.revokeObjectURL(target.objectUrl);
+        } catch {
+          // ignore
+        }
+        workspaceObjectUrlsRef.current =
+          workspaceObjectUrlsRef.current.filter((u) => u !== target.objectUrl);
+      }
+      return prev.filter((a) => a.id !== id);
+    });
   };
 
   const handleTriageAll = async () => {
@@ -178,7 +272,12 @@ function Index() {
       const s = SAMPLE_REQUESTS[i];
       let d: Decision;
       try {
-        d = await classify({ data: { requestText: s.text } });
+        d = await classify({
+          data: {
+            requestText: s.text,
+            attachments: attachmentMeta(s.attachments),
+          },
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         d = {
@@ -189,7 +288,7 @@ function Index() {
           confidence: 0,
         };
       }
-      const r = applyRules(d, s.text);
+      const r = applyRules(d, s.text, s.attachments);
       const final: FinalDecision = {
         category: d.category,
         priority: r.priority,
@@ -204,6 +303,7 @@ function Index() {
             : String(now + i),
         timestamp: now + i,
         requestText: s.text,
+        attachments: [...s.attachments],
         aiDecision: d,
         aiRuling: r,
         finalDecision: final,
@@ -219,6 +319,7 @@ function Index() {
 
   const handleReview = (item: QueueItem) => {
     setRequestText(item.requestText);
+    setAttachments(item.attachments);
     setDecision(item.aiDecision);
     setRuling(item.aiRuling);
     setReviewingId(item.id);
@@ -228,9 +329,11 @@ function Index() {
   const cancelReview = () => {
     setReviewingId(null);
     setRequestText("");
+    setAttachments([]);
     setDecision(null);
     setRuling(null);
   };
+
 
   const escalatedCount = processedQueue.filter(
     (q) => q.finalDecision.status !== "auto_routed",
@@ -321,6 +424,16 @@ function Index() {
                   </div>
                 </div>
 
+                <AttachmentsEditor
+                  attachments={attachments}
+                  fileInputRef={fileInputRef}
+                  onAdd={handleAddFiles}
+                  onRemove={handleRemoveAttachment}
+                  disabled={isClassifying || batchProgress !== null}
+                />
+
+
+
                 <button
                   type="button"
                   onClick={handleTriage}
@@ -378,7 +491,7 @@ function Index() {
                         const s = SAMPLE_REQUESTS.find(
                           (x) => x.id === e.target.value,
                         );
-                        if (s) handleLoadSample(s.text);
+                        if (s) handleLoadSample(s.text, [...s.attachments]);
                       }}
                       className="flex-1 border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none disabled:opacity-50"
                     >
@@ -438,6 +551,7 @@ function Index() {
                     key={requestText.slice(0, 24) + processedQueue.length}
                     decision={decision}
                     ruling={ruling}
+                    attachments={attachments}
                     onFinalize={handleFinalize}
                   />
                 ) : (
@@ -589,6 +703,10 @@ const STATUS_STYLES: Record<
     badge: "bg-purple-50 border-purple-300 text-purple-800",
     dot: "bg-purple-600",
   },
+  escalated_attachment_mismatch: {
+    badge: "bg-purple-50 border-purple-300 text-purple-800",
+    dot: "bg-purple-600",
+  },
   escalated_guardrail: {
     badge: "bg-purple-50 border-purple-300 text-purple-800",
     dot: "bg-purple-600",
@@ -604,10 +722,12 @@ const STATUS_STYLES: Record<
 function DecisionCard({
   decision,
   ruling,
+  attachments,
   onFinalize,
 }: {
   decision: Decision;
   ruling: RuleResult;
+  attachments: Attachment[];
   onFinalize: (final: FinalDecision, wasOverridden: boolean) => void;
 }) {
   // Editable draft state for Override.
@@ -688,6 +808,22 @@ function DecisionCard({
           </ul>
         </div>
       ) : null}
+
+      {attachments.length > 0 ? (
+        <div className="border border-border bg-muted/40 p-3">
+          <div className="mb-2 flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            <PaperclipIcon />
+            Attachments ({attachments.length})
+          </div>
+          <AttachmentsList attachments={attachments} />
+          <p className="mt-2 font-serif text-xs italic text-muted-foreground">
+            The classifier saw only filenames and types — not the file
+            contents. A human should open each file before acting.
+          </p>
+        </div>
+      ) : null}
+
+
 
       <div className="grid grid-cols-[110px_minmax(0,1fr)] items-baseline gap-4">
         <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -957,9 +1093,23 @@ function QueueView({
                     </span>
                   </Td>
                   <Td>
-                    <span className="line-clamp-2 font-serif text-sm text-foreground">
-                      {shorten(item.requestText, 90)}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className="line-clamp-2 font-serif text-sm text-foreground">
+                        {shorten(item.requestText, 90)}
+                      </span>
+                      {item.attachments.length > 0 ? (
+                        <span
+                          title={item.attachments
+                            .map((a) => a.filename)
+                            .join(", ")}
+                          className="inline-flex w-fit items-center gap-1 border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
+                        >
+                          <PaperclipIcon />
+                          {item.attachments.length} file
+                          {item.attachments.length === 1 ? "" : "s"}
+                        </span>
+                      ) : null}
+                    </div>
                   </Td>
                   <Td>
                     <span className="font-serif text-sm text-foreground">
@@ -1133,3 +1283,157 @@ function DecisionSkeleton() {
   );
 }
 
+
+// ---------- Attachments UI ----------
+
+function PaperclipIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-3 w-3"
+      aria-hidden="true"
+    >
+      <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.99 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+    </svg>
+  );
+}
+
+function AttachmentsEditor({
+  attachments,
+  fileInputRef,
+  onAdd,
+  onRemove,
+  disabled,
+}: {
+  attachments: Attachment[];
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  onAdd: (files: FileList | null) => void;
+  onRemove: (id: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Attachments {attachments.length > 0 ? `(${attachments.length})` : ""}
+        </span>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={disabled}
+          className="inline-flex items-center gap-1.5 border border-border bg-background px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground transition-colors hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <PaperclipIcon />
+          Attach files
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => onAdd(e.target.files)}
+        />
+      </div>
+
+      {attachments.length === 0 ? (
+        <p className="font-serif text-xs italic text-muted-foreground">
+          No files attached. If the request mentions attachments but none are
+          present here, the assistant will escalate it to human review.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {attachments.map((a) => (
+            <li
+              key={a.id}
+              className="flex items-center gap-3 border border-border bg-card px-2.5 py-1.5"
+            >
+              <AttachmentThumb attachment={a} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-serif text-sm text-foreground">
+                  {a.filename}
+                </div>
+                <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  {fileKindLabel(a.mimeType)} · {formatBytes(a.sizeBytes)}
+                  {a.note ? ` · ${a.note}` : ""}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onRemove(a.id)}
+                disabled={disabled}
+                aria-label={`Remove ${a.filename}`}
+                className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground transition-colors hover:text-red-700 disabled:opacity-50"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function AttachmentsList({ attachments }: { attachments: Attachment[] }) {
+  return (
+    <ul className="space-y-1.5">
+      {attachments.map((a) => {
+        const inner = (
+          <>
+            <AttachmentThumb attachment={a} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-serif text-sm text-foreground">
+                {a.filename}
+              </div>
+              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                {fileKindLabel(a.mimeType)} · {formatBytes(a.sizeBytes)}
+                {a.note ? ` · ${a.note}` : ""}
+              </div>
+            </div>
+          </>
+        );
+        const className =
+          "flex items-center gap-3 border border-border bg-card px-2.5 py-1.5";
+        return (
+          <li key={a.id}>
+            {a.objectUrl ? (
+              <a
+                href={a.objectUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={`${className} transition-colors hover:bg-foreground/5`}
+              >
+                {inner}
+              </a>
+            ) : (
+              <div className={className}>{inner}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function AttachmentThumb({ attachment }: { attachment: Attachment }) {
+  if (attachment.objectUrl && isImageMime(attachment.mimeType)) {
+    return (
+      <img
+        src={attachment.objectUrl}
+        alt=""
+        className="h-9 w-9 shrink-0 border border-border object-cover"
+      />
+    );
+  }
+  return (
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-border bg-muted font-mono text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+      {fileKindLabel(attachment.mimeType).slice(0, 3)}
+    </div>
+  );
+}

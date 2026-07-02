@@ -31,9 +31,29 @@ const ClassificationSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
+const AttachmentMetaSchema = z.object({
+  filename: z.string().min(1).max(300),
+  mimeType: z.string().min(1).max(200),
+  sizeBytes: z.number().min(0),
+});
+
 const InputSchema = z.object({
   requestText: z.string().min(1).max(8000),
+  attachments: z.array(AttachmentMetaSchema).max(50).optional().default([]),
 });
+
+type AttachmentMeta = z.infer<typeof AttachmentMetaSchema>;
+
+function renderAttachments(atts: readonly AttachmentMeta[]): string {
+  if (atts.length === 0) return "Attachments: (none)";
+  const lines = atts
+    .map(
+      (a, i) =>
+        `  ${i + 1}. ${a.filename}  (${a.mimeType}, ${a.sizeBytes} bytes)`,
+    )
+    .join("\n");
+  return `Attachments (metadata only — file contents were NOT read):\n${lines}`;
+}
 
 function buildSystemPrompt(rb: Rulebook): string {
   const categoryLines = rb.categories
@@ -63,6 +83,11 @@ function buildSystemPrompt(rb: Rulebook): string {
     "     humble low-confidence one — a human reviews low-confidence items.",
     "  4. `reason` must be a single short sentence explaining the match in plain English.",
     "  5. Do not include any text outside the JSON object.",
+    "  6. You will also receive attachment metadata (filename + mime type + size).",
+    "     Use it as evidence about what the sender included — for example an",
+    "     `irb_approval.pdf` alongside an access request is meaningful context, and",
+    "     an `error_screenshot.png` supports a technical_platform classification.",
+    "     You have NOT seen the file bytes; do not claim to have read them.",
   ].join("\n");
 }
 
@@ -79,11 +104,23 @@ export const classifyRequest = createServerFn({ method: "POST" })
     const gateway = createLovableAiGatewayProvider(key);
     const model = gateway("google/gemini-3-flash-preview");
 
+    const attachments = data.attachments ?? [];
+    const userPrompt = [
+      "Incoming request:",
+      '"""',
+      data.requestText,
+      '"""',
+      "",
+      renderAttachments(attachments),
+      "",
+      "Return the JSON classification now.",
+    ].join("\n");
+
     try {
       const { output } = await generateText({
         model,
         system: buildSystemPrompt(RULEBOOK),
-        prompt: `Incoming request:\n"""\n${data.requestText}\n"""\n\nReturn the JSON classification now.`,
+        prompt: userPrompt,
         output: Output.object({ schema: ClassificationSchema }),
       });
 

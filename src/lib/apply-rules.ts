@@ -1,9 +1,11 @@
 import { RULEBOOK, type Priority } from "./rulebook";
 import type { Decision } from "./mock-classify";
+import { type Attachment, textMentionsAttachments } from "./attachments";
 
 export type TriageStatus =
   | "auto_routed"
   | "escalated_low_confidence"
+  | "escalated_attachment_mismatch"
   | "escalated_guardrail"
   | "escalated_privacy_incident";
 
@@ -32,6 +34,7 @@ const contains = (text: string, terms: string[]) =>
 export function applyRules(
   decision: Decision,
   requestText: string,
+  attachments: readonly Attachment[] = [],
 ): RuleResult {
   const text = requestText.toLowerCase();
   const flags: string[] = [];
@@ -48,6 +51,16 @@ export function applyRules(
       `Confidence ${(decision.confidence * 100).toFixed(0)}% is below threshold ${(
         RULEBOOK.confidenceThreshold * 100
       ).toFixed(0)}% — human review required.`,
+    );
+  }
+
+  // Attachment mismatch — the text references attachments but none arrived.
+  // A reviewer needs to chase the missing files before any routing is safe.
+  if (textMentionsAttachments(requestText) && attachments.length === 0) {
+    finalRoute = HUMAN_REVIEW;
+    status = "escalated_attachment_mismatch";
+    flags.push(
+      "Request references attachments but none were provided — chase the missing files before routing.",
     );
   }
 
@@ -78,6 +91,7 @@ export function applyRules(
 export const STATUS_LABELS: Record<TriageStatus, string> = {
   auto_routed: "Auto-routed",
   escalated_low_confidence: "Escalated — low confidence",
+  escalated_attachment_mismatch: "Escalated — missing attachments",
   escalated_guardrail: "Escalated — guardrail",
   escalated_privacy_incident: "Escalated — privacy incident",
 };
