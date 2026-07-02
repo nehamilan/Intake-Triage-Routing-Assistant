@@ -236,24 +236,40 @@ function Index() {
     opts: {
       reviewer: string;
       revision: number;
+      rootId?: string;
       supersedesId?: string;
       id?: string;
+      changes: FieldChange[];
+      reason: string;
+      guardrailAcknowledged: boolean;
     },
-  ): QueueItem => ({
-    id: opts.id ?? newId(),
-    timestamp: Date.now(),
-    requestText: text,
-    attachments: atts,
-    aiDecision: d,
-    aiRuling: r,
-    finalDecision: final,
-    overridden: wasOverridden,
-    reviewer: opts.reviewer,
-    revision: opts.revision,
-    supersedesId: opts.supersedesId,
-  });
+  ): QueueItem => {
+    const id = opts.id ?? newId();
+    return {
+      id,
+      timestamp: Date.now(),
+      requestText: text,
+      attachments: atts,
+      aiDecision: d,
+      aiRuling: r,
+      finalDecision: final,
+      overridden: wasOverridden,
+      reviewer: opts.reviewer,
+      revision: opts.revision,
+      rootId: opts.rootId ?? id,
+      supersedesId: opts.supersedesId,
+      changes: opts.changes,
+      reason: opts.reason,
+      guardrailAcknowledged: opts.guardrailAcknowledged,
+    };
+  };
 
-  const handleFinalize = (final: FinalDecision, wasOverridden: boolean) => {
+  const handleFinalize = (
+    final: FinalDecision,
+    wasOverridden: boolean,
+    reason: string,
+    guardrailAcknowledged: boolean,
+  ) => {
     if (!decision || !ruling) return;
     const reviewerName = reviewer.trim();
     if (reviewingId && isRevising) {
@@ -262,6 +278,7 @@ function Index() {
       // existing queue entry — decisions themselves stay immutable.
       const prev = processedQueue.find((q) => q.id === reviewingId);
       if (!prev) return;
+      const changes = computeChanges(prev.finalDecision, final);
       const newRow = buildQueueItem(
         prev.requestText,
         prev.attachments,
@@ -272,7 +289,11 @@ function Index() {
         {
           reviewer: reviewerName,
           revision: prev.revision + 1,
+          rootId: prev.rootId,
           supersedesId: prev.id,
+          changes,
+          reason,
+          guardrailAcknowledged,
         },
       );
       setProcessedQueue((queue) => [
@@ -285,6 +306,16 @@ function Index() {
       setIsRevising(false);
       setActiveTab("queue");
     } else {
+      // v1: diff vs the AI's proposal so that an override on first pass still
+      // shows what changed relative to the model's suggestion.
+      const aiBaseline: FinalDecision = {
+        category: decision.category,
+        priority: ruling.priority,
+        route: ruling.finalRoute,
+        status: ruling.status,
+        flags: ruling.flags,
+      };
+      const changes = computeChanges(aiBaseline, final);
       setProcessedQueue((prev) => [
         buildQueueItem(
           requestText,
@@ -293,7 +324,13 @@ function Index() {
           decision,
           ruling,
           wasOverridden,
-          { reviewer: reviewerName, revision: 1 },
+          {
+            reviewer: reviewerName,
+            revision: 1,
+            changes,
+            reason,
+            guardrailAcknowledged,
+          },
         ),
         ...prev,
       ]);
@@ -307,6 +344,7 @@ function Index() {
     setRuling(null);
     setClassifyError(null);
   };
+
 
 
   const handleLoadSample = (text: string, atts: Attachment[]) => {
