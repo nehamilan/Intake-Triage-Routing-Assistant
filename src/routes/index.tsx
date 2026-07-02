@@ -35,10 +35,13 @@ function Index() {
   const [requestText, setRequestText] = useState("");
   const [activeTab, setActiveTab] = useState<"triage" | "queue">("triage");
   const [decision, setDecision] = useState<Decision | null>(null);
+  const [ruling, setRuling] = useState<RuleResult | null>(null);
 
   const handleTriage = () => {
     if (requestText.trim().length === 0) return;
-    setDecision(mockClassify(requestText));
+    const d = mockClassify(requestText);
+    setDecision(d);
+    setRuling(applyRules(d, requestText));
   };
 
   return (
