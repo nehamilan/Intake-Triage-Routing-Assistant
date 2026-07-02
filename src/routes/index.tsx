@@ -110,6 +110,7 @@ function Index() {
 
                 <button
                   type="button"
+                  onClick={handleTriage}
                   disabled={requestText.trim().length === 0}
                   className="w-full bg-primary py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground shadow-sm transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -117,9 +118,10 @@ function Index() {
                 </button>
               </section>
 
-              {/* Right panel — empty state / decision preview */}
+              {/* Right panel — decision card */}
               <section
                 aria-labelledby="decision-label"
+                aria-live="polite"
                 className="flex min-h-[26rem] flex-col border border-border bg-card p-6 sm:p-8"
               >
                 <div className="mb-6 border-b border-dashed border-border pb-4">
@@ -130,28 +132,39 @@ function Index() {
                     Triage Result
                   </h2>
                   <p className="mt-1 font-serif text-sm italic text-muted-foreground">
-                    No request triaged yet.
+                    {decision
+                      ? "Proposed decision — pending human review."
+                      : "No request triaged yet."}
                   </p>
                 </div>
 
-                <div className="space-y-5">
-                  <DecisionRow label="Category" />
-                  <DecisionRow label="Priority" />
-                  <DecisionRow label="Route" />
-                  <DecisionRow label="Reasoning" value="Waiting for input data…" italic multiline />
+                {decision ? (
+                  <DecisionCard decision={decision} />
+                ) : (
+                  <div className="space-y-5">
+                    <DecisionRow label="Category" />
+                    <DecisionRow label="Priority" />
+                    <DecisionRow label="Route" />
+                    <DecisionRow
+                      label="Reasoning"
+                      value="Waiting for input data…"
+                      italic
+                      multiline
+                    />
 
-                  <div className="mt-8 flex items-center justify-between border-t border-dashed border-border pt-6">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                        Confidence Score
-                      </span>
-                      <span className="font-serif text-lg text-muted-foreground/60">
-                        0.0%
-                      </span>
+                    <div className="mt-8 flex items-center justify-between border-t border-dashed border-border pt-6">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                          Confidence Score
+                        </span>
+                        <span className="font-serif text-lg text-muted-foreground/60">
+                          0.0%
+                        </span>
+                      </div>
+                      <div className="h-1 w-28 bg-muted" />
                     </div>
-                    <div className="h-1 w-28 bg-muted" />
                   </div>
-                </div>
+                )}
               </section>
             </div>
           ) : (
