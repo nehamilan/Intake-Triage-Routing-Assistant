@@ -509,8 +509,9 @@ function Index() {
                       value={requestText}
                       onChange={(e) => setRequestText(e.target.value)}
                       rows={12}
+                      readOnly={reviewingItem !== null}
                       placeholder="Paste an incoming request here — an email about accessing a restricted dataset, a deposit question, a licensing query, or a broken download link."
-                      className="h-64 w-full resize-none border border-border bg-card p-4 text-sm leading-relaxed text-foreground shadow-none outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-foreground focus:ring-0"
+                      className={`h-64 w-full resize-none border border-border bg-card p-4 text-sm leading-relaxed text-foreground shadow-none outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-foreground focus:ring-0 ${reviewingItem ? "cursor-not-allowed opacity-80" : ""}`}
                     />
                     <div className="pointer-events-none absolute bottom-3 right-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                       CHAR: {requestText.length}
