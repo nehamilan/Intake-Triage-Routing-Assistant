@@ -451,22 +451,46 @@ function Index() {
             <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2 lg:gap-12">
               {/* Input */}
               <section aria-labelledby="request-label" className="space-y-6">
-                {reviewingId ? (
-                  <div className="flex items-start justify-between gap-3 border border-purple-300 bg-purple-50/60 px-4 py-3">
+                {reviewingItem ? (
+                  <div
+                    className={
+                      isSupersededView
+                        ? "flex items-start justify-between gap-3 border border-border bg-muted/40 px-4 py-3"
+                        : isRevising
+                          ? "flex items-start justify-between gap-3 border border-amber-300 bg-amber-50/70 px-4 py-3"
+                          : "flex items-start justify-between gap-3 border border-purple-300 bg-purple-50/60 px-4 py-3"
+                    }
+                  >
                     <div>
-                      <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800">
-                        Reviewing queued item
+                      <div
+                        className={
+                          isSupersededView
+                            ? "font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
+                            : isRevising
+                              ? "font-mono text-[10px] font-bold uppercase tracking-widest text-amber-800"
+                              : "font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800"
+                        }
+                      >
+                        {isSupersededView
+                          ? `Viewing v${reviewingItem.revision} · superseded`
+                          : isRevising
+                            ? `Revising v${reviewingItem.revision} → will save as v${reviewingItem.revision + 1}`
+                            : `Finalized · v${reviewingItem.revision}`}
                       </div>
-                      <div className="mt-0.5 font-serif text-sm italic text-purple-900">
-                        Accept or override to update the queue entry.
+                      <div className="mt-0.5 font-serif text-sm italic text-foreground">
+                        {isSupersededView
+                          ? `Read-only. A newer revision exists — open it to revise.`
+                          : isRevising
+                            ? `Adjust category, priority, or route, then save as a new revision.`
+                            : `Accepted by ${reviewingItem.reviewer || "—"} · ${formatTime(reviewingItem.timestamp)}. Read-only unless you reopen.`}
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={cancelReview}
-                      className="border border-purple-300 bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800 hover:bg-purple-100"
+                      className="border border-border bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
                     >
-                      Cancel
+                      Close
                     </button>
                   </div>
                 ) : null}
