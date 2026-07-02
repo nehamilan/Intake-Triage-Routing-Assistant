@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { RULEBOOK } from "@/lib/rulebook";
+import { RULEBOOK, CATEGORY_LABELS, type Priority } from "@/lib/rulebook";
+import { mockClassify, type Decision } from "@/lib/mock-classify";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -27,6 +28,12 @@ export const Route = createFileRoute("/")({
 function Index() {
   const [requestText, setRequestText] = useState("");
   const [activeTab, setActiveTab] = useState<"triage" | "queue">("triage");
+  const [decision, setDecision] = useState<Decision | null>(null);
+
+  const handleTriage = () => {
+    if (requestText.trim().length === 0) return;
+    setDecision(mockClassify(requestText));
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -103,6 +110,7 @@ function Index() {
 
                 <button
                   type="button"
+                  onClick={handleTriage}
                   disabled={requestText.trim().length === 0}
                   className="w-full bg-primary py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground shadow-sm transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -110,9 +118,10 @@ function Index() {
                 </button>
               </section>
 
-              {/* Right panel — empty state / decision preview */}
+              {/* Right panel — decision card */}
               <section
                 aria-labelledby="decision-label"
+                aria-live="polite"
                 className="flex min-h-[26rem] flex-col border border-border bg-card p-6 sm:p-8"
               >
                 <div className="mb-6 border-b border-dashed border-border pb-4">
@@ -123,28 +132,39 @@ function Index() {
                     Triage Result
                   </h2>
                   <p className="mt-1 font-serif text-sm italic text-muted-foreground">
-                    No request triaged yet.
+                    {decision
+                      ? "Proposed decision — pending human review."
+                      : "No request triaged yet."}
                   </p>
                 </div>
 
-                <div className="space-y-5">
-                  <DecisionRow label="Category" />
-                  <DecisionRow label="Priority" />
-                  <DecisionRow label="Route" />
-                  <DecisionRow label="Reasoning" value="Waiting for input data…" italic multiline />
+                {decision ? (
+                  <DecisionCard decision={decision} />
+                ) : (
+                  <div className="space-y-5">
+                    <DecisionRow label="Category" />
+                    <DecisionRow label="Priority" />
+                    <DecisionRow label="Route" />
+                    <DecisionRow
+                      label="Reasoning"
+                      value="Waiting for input data…"
+                      italic
+                      multiline
+                    />
 
-                  <div className="mt-8 flex items-center justify-between border-t border-dashed border-border pt-6">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                        Confidence Score
-                      </span>
-                      <span className="font-serif text-lg text-muted-foreground/60">
-                        0.0%
-                      </span>
+                    <div className="mt-8 flex items-center justify-between border-t border-dashed border-border pt-6">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                          Confidence Score
+                        </span>
+                        <span className="font-serif text-lg text-muted-foreground/60">
+                          0.0%
+                        </span>
+                      </div>
+                      <div className="h-1 w-28 bg-muted" />
                     </div>
-                    <div className="h-1 w-28 bg-muted" />
                   </div>
-                </div>
+                )}
               </section>
             </div>
           ) : (
@@ -193,6 +213,109 @@ function DecisionRow({ label, value = "—", italic, multiline }: DecisionRowPro
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+const PRIORITY_STYLES: Record<
+  Priority,
+  { dot: string; text: string; bg: string; label: string }
+> = {
+  urgent: {
+    dot: "bg-red-600",
+    text: "text-red-700",
+    bg: "bg-red-50 border-red-200",
+    label: "Urgent",
+  },
+  normal: {
+    dot: "bg-amber-500",
+    text: "text-amber-700",
+    bg: "bg-amber-50 border-amber-200",
+    label: "Normal",
+  },
+  low: {
+    dot: "bg-muted-foreground",
+    text: "text-muted-foreground",
+    bg: "bg-muted border-border",
+    label: "Low",
+  },
+};
+
+function DecisionCard({ decision }: { decision: Decision }) {
+  const pri = PRIORITY_STYLES[decision.priority];
+  const pct = Math.round(decision.confidence * 100);
+  const belowThreshold = decision.confidence < RULEBOOK.confidenceThreshold;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-[110px_minmax(0,1fr)] items-baseline gap-4">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Category
+        </span>
+        <span className="border-b border-border pb-1 font-serif text-base text-foreground">
+          {CATEGORY_LABELS[decision.category]}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-4">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Priority
+        </span>
+        <span
+          className={`inline-flex w-fit items-center gap-2 border px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest ${pri.bg} ${pri.text}`}
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${pri.dot}`} />
+          {pri.label}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-[110px_minmax(0,1fr)] items-baseline gap-4">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Route
+        </span>
+        <span className="border-b border-border pb-1 font-serif text-base text-foreground">
+          {decision.route}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-4">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Reasoning
+        </span>
+        <p className="border-b border-border pb-2 font-serif text-sm italic leading-relaxed text-foreground">
+          {decision.reason}
+        </p>
+      </div>
+
+      <div className="mt-8 border-t border-dashed border-border pt-6">
+        <div className="mb-2 flex items-baseline justify-between">
+          <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Confidence Score
+          </span>
+          <span
+            className={`font-serif text-lg ${belowThreshold ? "text-red-700" : "text-foreground"}`}
+          >
+            {pct}%
+          </span>
+        </div>
+        <div
+          className="h-1.5 w-full bg-muted"
+          role="progressbar"
+          aria-valuenow={pct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            className={`h-full ${belowThreshold ? "bg-red-600" : "bg-foreground"}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        {belowThreshold ? (
+          <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-red-700">
+            Below threshold ({RULEBOOK.confidenceThreshold.toFixed(2)}) — flag for review.
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
