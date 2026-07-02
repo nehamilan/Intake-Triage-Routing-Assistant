@@ -365,6 +365,8 @@ function Index() {
               escalatedCount={escalatedCount}
               autoRoutedCount={autoRoutedCount}
               onStartNew={() => setActiveTab("triage")}
+              onReview={handleReview}
+              reviewingId={reviewingId}
             />
           )}
         </main>
