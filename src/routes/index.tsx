@@ -1074,3 +1074,62 @@ function formatTime(ts: number): string {
   const ss = String(d.getSeconds()).padStart(2, "0");
   return `${hh}:${mm}:${ss}`;
 }
+
+function Spinner() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-3.5 w-3.5 animate-spin"
+      fill="none"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        stroke="currentColor"
+        strokeWidth="3"
+        opacity="0.25"
+      />
+      <path
+        d="M21 12a9 9 0 0 0-9-9"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function DecisionSkeleton() {
+  return (
+    <div
+      className="flex flex-1 flex-col gap-6"
+      role="status"
+      aria-label="Classifying request"
+    >
+      <div className="flex items-center gap-3">
+        <div className="h-6 w-40 animate-pulse bg-foreground/10" />
+        <div className="h-6 w-20 animate-pulse bg-foreground/10" />
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-24 animate-pulse bg-foreground/10" />
+        <div className="h-4 w-full animate-pulse bg-foreground/10" />
+        <div className="h-4 w-5/6 animate-pulse bg-foreground/10" />
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-28 animate-pulse bg-foreground/10" />
+        <div className="h-2 w-full animate-pulse bg-foreground/10" />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="h-16 animate-pulse bg-foreground/10" />
+        <div className="h-16 animate-pulse bg-foreground/10" />
+      </div>
+      <div className="mt-auto flex gap-3">
+        <div className="h-10 flex-1 animate-pulse bg-foreground/10" />
+        <div className="h-10 w-32 animate-pulse bg-foreground/10" />
+      </div>
+    </div>
+  );
+}
+
