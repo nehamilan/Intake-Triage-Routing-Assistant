@@ -88,8 +88,13 @@ function Index() {
   const [decision, setDecision] = useState<Decision | null>(null);
   const [ruling, setRuling] = useState<RuleResult | null>(null);
   const [processedQueue, setProcessedQueue] = useState<QueueItem[]>([]);
-  // When set, finalizing replaces the existing queue item instead of prepending.
+  // Free-form reviewer name, session-scoped. Captured on every finalize/revise.
+  const [reviewer, setReviewer] = useState("");
+  // When set, the workspace is bound to an existing queue item (finalized view).
+  // `isRevising` flips true when the user clicks "Reopen for revision" and
+  // unlocks the override controls; saving then appends a new revision row.
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [isRevising, setIsRevising] = useState(false);
 
   // Async classifier state.
   const [isClassifying, setIsClassifying] = useState(false);
