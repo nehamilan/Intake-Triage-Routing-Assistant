@@ -1070,30 +1070,70 @@ function DecisionCard({
         )}
       </div>
 
-      {/* Review controls */}
+      {/* Review controls — mode-dependent */}
       <div className="mt-6 border-t border-border pt-6">
-        {!editing ? (
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="border border-foreground bg-background py-2.5 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
-            >
-              Override
-            </button>
-            <button
-              type="button"
-              onClick={acceptAsIs}
-              className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90"
-            >
-              Accept &amp; Send to Queue
-            </button>
+        {mode === "superseded" ? (
+          <p className="font-serif text-sm italic text-muted-foreground">
+            This revision has been superseded by a newer decision. Open the
+            latest revision from the Queue to make further changes.
+          </p>
+        ) : mode === "finalized" ? (
+          <div className="space-y-3">
+            <p className="font-serif text-sm italic text-foreground">
+              Finalized decision — read-only.
+              {finalizedReviewer ? (
+                <>
+                  {" "}
+                  Accepted by{" "}
+                  <span className="not-italic font-semibold">
+                    {finalizedReviewer}
+                  </span>
+                  {finalizedAt
+                    ? ` at ${formatTime(finalizedAt)}`
+                    : null}
+                  .
+                </>
+              ) : null}
+            </p>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={onReopen}
+                className="border border-foreground bg-background py-2.5 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
+              >
+                Reopen for revision
+              </button>
+            </div>
+          </div>
+        ) : !editing ? (
+          <div className="space-y-4">
+            <ReviewerField value={reviewer} onChange={onReviewerChange} />
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="border border-foreground bg-background py-2.5 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
+              >
+                Override
+              </button>
+              <button
+                type="button"
+                onClick={acceptAsIs}
+                disabled={!reviewerReady}
+                title={reviewerReady ? undefined : "Enter your name to accept."}
+                className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Accept &amp; Send to Queue
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              Override Draft
+              {mode === "revising" ? "Revision Draft" : "Override Draft"}
             </div>
+
+            <ReviewerField value={reviewer} onChange={onReviewerChange} />
 
             <OverrideField label="Category">
               <select
@@ -1141,6 +1181,10 @@ function DecisionCard({
               <button
                 type="button"
                 onClick={() => {
+                  if (mode === "revising") {
+                    onCancelRevision();
+                    return;
+                  }
                   setEditing(false);
                   setDraftCategory(decision.category);
                   setDraftPriority(ruling.priority);
@@ -1153,14 +1197,44 @@ function DecisionCard({
               <button
                 type="button"
                 onClick={saveOverride}
-                className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90"
+                disabled={!reviewerReady}
+                title={reviewerReady ? undefined : "Enter your name to save."}
+                className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Save Override
+                {mode === "revising" ? "Save as revision" : "Save Override"}
               </button>
             </div>
           </div>
         )}
       </div>
+      {isEditable ? null : null}
+    </div>
+  );
+}
+
+function ReviewerField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-4">
+      <label
+        htmlFor="reviewer-name"
+        className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
+      >
+        Reviewer
+      </label>
+      <input
+        id="reviewer-name"
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Your name (required to finalize)"
+        className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
+      />
     </div>
   );
 }
