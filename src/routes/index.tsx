@@ -800,21 +800,30 @@ function DecisionCard({
       </div>
 
       {ruling.flags.length > 0 ? (
-        <div className="border-l-4 border-purple-600 bg-purple-50/60 p-4">
-          <div className="mb-2 font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800">
-            Guardrail Flags
-          </div>
-          <ul className="space-y-1.5">
-            {ruling.flags.map((f) => (
-              <li
-                key={f}
-                className="font-serif text-sm leading-snug text-purple-900"
-              >
-                — {f}
-              </li>
-            ))}
-          </ul>
-        </div>
+        (() => {
+          const isParseFailure = ruling.status === "escalated_parse_failure";
+          const wrapCls = isParseFailure
+            ? "border-l-4 border-red-600 bg-red-50/60 p-4"
+            : "border-l-4 border-purple-600 bg-purple-50/60 p-4";
+          const labelCls = isParseFailure
+            ? "mb-2 font-mono text-[10px] font-bold uppercase tracking-widest text-red-800"
+            : "mb-2 font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800";
+          const itemCls = isParseFailure
+            ? "font-serif text-sm leading-snug text-red-900"
+            : "font-serif text-sm leading-snug text-purple-900";
+          return (
+            <div className={wrapCls}>
+              <div className={labelCls}>Guardrail Flags</div>
+              <ul className="space-y-1.5">
+                {ruling.flags.map((f) => (
+                  <li key={f} className={itemCls}>
+                    — {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()
       ) : null}
 
       {attachments.length > 0 ? (
