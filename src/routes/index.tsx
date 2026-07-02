@@ -358,27 +358,57 @@ function Index() {
   };
 
   const handleReview = (item: QueueItem) => {
+    // Reconstruct decision + ruling so the card reflects the FINAL committed
+    // values, not the raw AI proposal (which may have been overridden).
+    const finalRuling: RuleResult = {
+      ...item.aiRuling,
+      priority: item.finalDecision.priority,
+      finalRoute: item.finalDecision.route,
+      status: item.finalDecision.status,
+      flags: item.finalDecision.flags,
+    };
+    const finalDecision: Decision = {
+      ...item.aiDecision,
+      category: item.finalDecision.category,
+    };
     setRequestText(item.requestText);
     setAttachments(item.attachments);
-    setDecision(item.aiDecision);
-    setRuling(item.aiRuling);
+    setDecision(finalDecision);
+    setRuling(finalRuling);
     setReviewingId(item.id);
+    setIsRevising(false);
     setActiveTab("triage");
   };
 
   const cancelReview = () => {
     setReviewingId(null);
+    setIsRevising(false);
     setRequestText("");
     setAttachments([]);
     setDecision(null);
     setRuling(null);
   };
 
+  const startRevision = () => {
+    if (!reviewingId) return;
+    setIsRevising(true);
+  };
 
-  const escalatedCount = processedQueue.filter(
+
+  // Counters reflect current versions only — superseded revisions stay in the
+  // log but shouldn't inflate the escalated / auto-routed totals.
+  const currentQueue = processedQueue.filter((q) => !q.supersededById);
+  const supersededCount = processedQueue.length - currentQueue.length;
+  const escalatedCount = currentQueue.filter(
     (q) => q.finalDecision.status !== "auto_routed",
   ).length;
-  const autoRoutedCount = processedQueue.length - escalatedCount;
+  const autoRoutedCount = currentQueue.length - escalatedCount;
+
+  const reviewingItem = reviewingId
+    ? processedQueue.find((q) => q.id === reviewingId) ?? null
+    : null;
+  const isSupersededView =
+    reviewingItem !== null && reviewingItem.supersededById !== undefined;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
