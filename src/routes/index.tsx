@@ -1057,22 +1057,6 @@ function QueueView({
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Counters */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Stat label="Processed" value={items.length} />
-        <Stat label="Auto-routed" value={autoRoutedCount} tone="green" />
-        <Stat label="Escalated" value={escalatedCount} tone="purple" />
-        <Stat
-          label="Overridden"
-          value={items.filter((i) => i.overridden).length}
-        />
-      </div>
-
-      <div className="overflow-x-auto border border-border bg-card">
-        <table className="w-full min-w-[720px] border-collapse text-left">
-          <thead>
   const anyEmbargo = items.some((i) => i.aiRuling.embargo.mentioned);
 
   return (
