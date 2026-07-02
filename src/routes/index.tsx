@@ -1,6 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { RULEBOOK, CATEGORY_LABELS, type Priority } from "@/lib/rulebook";
+import {
+  RULEBOOK,
+  CATEGORY_LABELS,
+  type Category,
+  type Priority,
+} from "@/lib/rulebook";
 import { mockClassify, type Decision } from "@/lib/mock-classify";
 import {
   applyRules,
@@ -31,11 +36,40 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
+// ---------- Types ----------
+
+interface FinalDecision {
+  category: Category;
+  priority: Priority;
+  route: string;
+  status: TriageStatus;
+  flags: string[];
+}
+
+interface QueueItem {
+  id: string;
+  timestamp: number;
+  requestText: string;
+  aiDecision: Decision;
+  aiRuling: RuleResult;
+  finalDecision: FinalDecision;
+  overridden: boolean;
+}
+
+// All routes selectable in the Override control.
+const AVAILABLE_ROUTES: readonly string[] = [
+  ...Array.from(new Set(Object.values(RULEBOOK.routes))),
+  "Human Review Queue",
+];
+
+// ---------- Root component ----------
+
 function Index() {
   const [requestText, setRequestText] = useState("");
   const [activeTab, setActiveTab] = useState<"triage" | "queue">("triage");
   const [decision, setDecision] = useState<Decision | null>(null);
   const [ruling, setRuling] = useState<RuleResult | null>(null);
+  const [processedQueue, setProcessedQueue] = useState<QueueItem[]>([]);
 
   const handleTriage = () => {
     if (requestText.trim().length === 0) return;
@@ -44,10 +78,35 @@ function Index() {
     setRuling(applyRules(d, requestText));
   };
 
+  const handleFinalize = (final: FinalDecision, wasOverridden: boolean) => {
+    if (!decision || !ruling) return;
+    const item: QueueItem = {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : String(Date.now() + Math.random()),
+      timestamp: Date.now(),
+      requestText,
+      aiDecision: decision,
+      aiRuling: ruling,
+      finalDecision: final,
+      overridden: wasOverridden,
+    };
+    setProcessedQueue((prev) => [item, ...prev]);
+    // Reset the workspace for the next intake.
+    setRequestText("");
+    setDecision(null);
+    setRuling(null);
+  };
+
+  const escalatedCount = processedQueue.filter(
+    (q) => q.finalDecision.status !== "auto_routed",
+  ).length;
+  const autoRoutedCount = processedQueue.length - escalatedCount;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-6 py-8 sm:px-8 sm:py-10">
-        {/* Header */}
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-8 sm:px-8 sm:py-10">
         <header className="mb-8 border-b border-foreground pb-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-baseline sm:justify-between">
             <h1 className="font-serif text-2xl font-medium leading-tight text-foreground sm:text-3xl">
@@ -57,30 +116,23 @@ function Index() {
               aria-label="Sections"
               className="flex gap-6 text-xs font-semibold uppercase tracking-widest"
             >
-              <button
-                type="button"
+              <TabButton
+                active={activeTab === "triage"}
                 onClick={() => setActiveTab("triage")}
-                aria-pressed={activeTab === "triage"}
-                className={
-                  activeTab === "triage"
-                    ? "border-b-2 border-foreground pb-1 text-foreground"
-                    : "border-b-2 border-transparent pb-1 text-muted-foreground transition-colors hover:text-foreground"
-                }
               >
                 Triage
-              </button>
-              <button
-                type="button"
+              </TabButton>
+              <TabButton
+                active={activeTab === "queue"}
                 onClick={() => setActiveTab("queue")}
-                aria-pressed={activeTab === "queue"}
-                className={
-                  activeTab === "queue"
-                    ? "border-b-2 border-foreground pb-1 text-foreground"
-                    : "border-b-2 border-transparent pb-1 text-muted-foreground transition-colors hover:text-foreground"
-                }
               >
                 Queue
-              </button>
+                {processedQueue.length > 0 ? (
+                  <span className="ml-1.5 rounded-sm bg-foreground px-1.5 py-0.5 font-mono text-[9px] text-background">
+                    {processedQueue.length}
+                  </span>
+                ) : null}
+              </TabButton>
             </nav>
           </div>
           <p className="mt-2 font-serif text-sm italic text-muted-foreground sm:text-base">
@@ -88,11 +140,10 @@ function Index() {
           </p>
         </header>
 
-        {/* Body */}
         <main className="flex-1">
           {activeTab === "triage" ? (
             <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2 lg:gap-12">
-              {/* Left panel — input */}
+              {/* Input */}
               <section aria-labelledby="request-label" className="space-y-6">
                 <div className="flex flex-col gap-2">
                   <label
@@ -127,7 +178,7 @@ function Index() {
                 </button>
               </section>
 
-              {/* Right panel — decision card */}
+              {/* Decision card */}
               <section
                 aria-labelledby="decision-label"
                 aria-live="polite"
@@ -148,55 +199,92 @@ function Index() {
                 </div>
 
                 {decision && ruling ? (
-                  <DecisionCard decision={decision} ruling={ruling} />
+                  <DecisionCard
+                    key={requestText.slice(0, 24) + processedQueue.length}
+                    decision={decision}
+                    ruling={ruling}
+                    onFinalize={handleFinalize}
+                  />
                 ) : (
-                  <div className="space-y-5">
-                    <DecisionRow label="Category" />
-                    <DecisionRow label="Priority" />
-                    <DecisionRow label="Route" />
-                    <DecisionRow
-                      label="Reasoning"
-                      value="Waiting for input data…"
-                      italic
-                      multiline
-                    />
-
-                    <div className="mt-8 flex items-center justify-between border-t border-dashed border-border pt-6">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                          Confidence Score
-                        </span>
-                        <span className="font-serif text-lg text-muted-foreground/60">
-                          0.0%
-                        </span>
-                      </div>
-                      <div className="h-1 w-28 bg-muted" />
-                    </div>
-                  </div>
+                  <EmptyDecisionState />
                 )}
               </section>
             </div>
           ) : (
-            <div className="border border-border bg-card p-12 text-center">
-              <p className="font-serif text-base italic text-muted-foreground">
-                Queue is empty.
-              </p>
-              <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                Triaged and reviewed requests will appear here.
-              </p>
-            </div>
+            <QueueView
+              items={processedQueue}
+              escalatedCount={escalatedCount}
+              autoRoutedCount={autoRoutedCount}
+              onStartNew={() => setActiveTab("triage")}
+            />
           )}
         </main>
 
-        {/* Footer / console strip */}
         <footer className="mt-12 flex flex-col gap-2 border-t border-border pt-6 font-mono text-[10px] uppercase tracking-widest text-muted-foreground sm:flex-row sm:justify-between">
           <span>Station: Console_01</span>
           <span>
             Vertical: {RULEBOOK.vertical.replace(/_/g, " ")} · Threshold:{" "}
             {RULEBOOK.confidenceThreshold.toFixed(2)}
           </span>
-          <span>Status: Ready for Intake</span>
+          <span>
+            Processed: {processedQueue.length} · Escalated: {escalatedCount} ·
+            Auto-routed: {autoRoutedCount}
+          </span>
         </footer>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Small UI bits ----------
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={
+        active
+          ? "inline-flex items-center border-b-2 border-foreground pb-1 text-foreground"
+          : "inline-flex items-center border-b-2 border-transparent pb-1 text-muted-foreground transition-colors hover:text-foreground"
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+function EmptyDecisionState() {
+  return (
+    <div className="space-y-5">
+      <DecisionRow label="Category" />
+      <DecisionRow label="Priority" />
+      <DecisionRow label="Route" />
+      <DecisionRow
+        label="Reasoning"
+        value="Waiting for input data…"
+        italic
+        multiline
+      />
+      <div className="mt-8 flex items-center justify-between border-t border-dashed border-border pt-6">
+        <div className="flex flex-col gap-0.5">
+          <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Confidence Score
+          </span>
+          <span className="font-serif text-lg text-muted-foreground/60">
+            0.0%
+          </span>
+        </div>
+        <div className="h-1 w-28 bg-muted" />
       </div>
     </div>
   );
@@ -226,6 +314,8 @@ function DecisionRow({ label, value = "—", italic, multiline }: DecisionRowPro
   );
 }
 
+// ---------- Styles for priority and status ----------
+
 const PRIORITY_STYLES: Record<
   Priority,
   { dot: string; text: string; bg: string; label: string }
@@ -252,47 +342,82 @@ const PRIORITY_STYLES: Record<
 
 const STATUS_STYLES: Record<
   TriageStatus,
-  { badge: string; dot: string; tone: "green" | "purple" }
+  { badge: string; dot: string }
 > = {
   auto_routed: {
-    badge:
-      "bg-green-50 border-green-300 text-green-800",
+    badge: "bg-green-50 border-green-300 text-green-800",
     dot: "bg-green-600",
-    tone: "green",
   },
   escalated_low_confidence: {
     badge: "bg-purple-50 border-purple-300 text-purple-800",
     dot: "bg-purple-600",
-    tone: "purple",
   },
   escalated_guardrail: {
     badge: "bg-purple-50 border-purple-300 text-purple-800",
     dot: "bg-purple-600",
-    tone: "purple",
   },
   escalated_privacy_incident: {
     badge: "bg-purple-50 border-purple-300 text-purple-800",
     dot: "bg-purple-600",
-    tone: "purple",
   },
 };
+
+// ---------- Decision Card ----------
 
 function DecisionCard({
   decision,
   ruling,
+  onFinalize,
 }: {
   decision: Decision;
   ruling: RuleResult;
+  onFinalize: (final: FinalDecision, wasOverridden: boolean) => void;
 }) {
+  // Editable draft state for Override.
+  const [editing, setEditing] = useState(false);
+  const [draftCategory, setDraftCategory] = useState<Category>(decision.category);
+  const [draftPriority, setDraftPriority] = useState<Priority>(ruling.priority);
+  const [draftRoute, setDraftRoute] = useState<string>(ruling.finalRoute);
+
   const pri = PRIORITY_STYLES[ruling.priority];
   const pct = Math.round(decision.confidence * 100);
   const belowThreshold = decision.confidence < RULEBOOK.confidenceThreshold;
   const statusStyle = STATUS_STYLES[ruling.status];
   const routeOverridden = ruling.finalRoute !== decision.route;
 
+  const acceptAsIs = () => {
+    onFinalize(
+      {
+        category: decision.category,
+        priority: ruling.priority,
+        route: ruling.finalRoute,
+        status: ruling.status,
+        flags: ruling.flags,
+      },
+      false,
+    );
+  };
+
+  const saveOverride = () => {
+    const changed =
+      draftCategory !== decision.category ||
+      draftPriority !== ruling.priority ||
+      draftRoute !== ruling.finalRoute;
+    onFinalize(
+      {
+        category: draftCategory,
+        priority: draftPriority,
+        route: draftRoute,
+        status: ruling.status,
+        flags: ruling.flags,
+      },
+      changed,
+    );
+    setEditing(false);
+  };
+
   return (
     <div className="space-y-5">
-      {/* Status banner — prominent */}
       <div
         className={`flex items-start gap-3 border px-4 py-3 ${statusStyle.badge}`}
       >
@@ -309,7 +434,6 @@ function DecisionCard({
         </div>
       </div>
 
-      {/* Flags callout — shown only when guardrails fired */}
       {ruling.flags.length > 0 ? (
         <div className="border-l-4 border-purple-600 bg-purple-50/60 p-4">
           <div className="mb-2 font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800">
@@ -374,7 +498,6 @@ function DecisionCard({
         </p>
       </div>
 
-
       <div className="mt-8 border-t border-dashed border-border pt-6">
         <div className="mb-2 flex items-baseline justify-between">
           <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -404,6 +527,294 @@ function DecisionCard({
           </p>
         ) : null}
       </div>
+
+      {/* Review controls */}
+      <div className="mt-6 border-t border-border pt-6">
+        {!editing ? (
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="border border-foreground bg-background py-2.5 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
+            >
+              Override
+            </button>
+            <button
+              type="button"
+              onClick={acceptAsIs}
+              className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90"
+            >
+              Accept &amp; Send to Queue
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              Override Draft
+            </div>
+
+            <OverrideField label="Category">
+              <select
+                value={draftCategory}
+                onChange={(e) => setDraftCategory(e.target.value as Category)}
+                className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
+              >
+                {RULEBOOK.categories.map((c) => (
+                  <option key={c} value={c}>
+                    {CATEGORY_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+            </OverrideField>
+
+            <OverrideField label="Priority">
+              <select
+                value={draftPriority}
+                onChange={(e) => setDraftPriority(e.target.value as Priority)}
+                className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
+              >
+                {RULEBOOK.priorities.map((p) => (
+                  <option key={p} value={p}>
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </OverrideField>
+
+            <OverrideField label="Route">
+              <select
+                value={draftRoute}
+                onChange={(e) => setDraftRoute(e.target.value)}
+                className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
+              >
+                {AVAILABLE_ROUTES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </OverrideField>
+
+            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(false);
+                  setDraftCategory(decision.category);
+                  setDraftPriority(ruling.priority);
+                  setDraftRoute(ruling.finalRoute);
+                }}
+                className="border border-border bg-background py-2.5 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveOverride}
+                className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90"
+              >
+                Save Override
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+function OverrideField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-4">
+      <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+// ---------- Queue view ----------
+
+function QueueView({
+  items,
+  escalatedCount,
+  autoRoutedCount,
+  onStartNew,
+}: {
+  items: QueueItem[];
+  escalatedCount: number;
+  autoRoutedCount: number;
+  onStartNew: () => void;
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="border border-border bg-card p-12 text-center">
+        <p className="font-serif text-base italic text-muted-foreground">
+          Queue is empty.
+        </p>
+        <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          Triaged and reviewed requests will appear here.
+        </p>
+        <button
+          type="button"
+          onClick={onStartNew}
+          className="mt-6 border border-foreground bg-background py-2 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
+        >
+          Go to Triage
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Counters */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Stat label="Processed" value={items.length} />
+        <Stat label="Auto-routed" value={autoRoutedCount} tone="green" />
+        <Stat label="Escalated" value={escalatedCount} tone="purple" />
+        <Stat
+          label="Overridden"
+          value={items.filter((i) => i.overridden).length}
+        />
+      </div>
+
+      <div className="overflow-x-auto border border-border bg-card">
+        <table className="w-full min-w-[720px] border-collapse text-left">
+          <thead>
+            <tr className="border-b border-border">
+              <Th>Time</Th>
+              <Th>Request</Th>
+              <Th>Category</Th>
+              <Th>Priority</Th>
+              <Th>Route</Th>
+              <Th>Status</Th>
+              <Th>Override</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => {
+              const pri = PRIORITY_STYLES[item.finalDecision.priority];
+              const status = STATUS_STYLES[item.finalDecision.status];
+              return (
+                <tr
+                  key={item.id}
+                  className="border-b border-border/60 align-top last:border-b-0"
+                >
+                  <Td>
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {formatTime(item.timestamp)}
+                    </span>
+                  </Td>
+                  <Td>
+                    <span className="line-clamp-2 font-serif text-sm text-foreground">
+                      {shorten(item.requestText, 90)}
+                    </span>
+                  </Td>
+                  <Td>
+                    <span className="font-serif text-sm text-foreground">
+                      {CATEGORY_LABELS[item.finalDecision.category]}
+                    </span>
+                  </Td>
+                  <Td>
+                    <span
+                      className={`inline-flex items-center gap-1.5 border px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${pri.bg} ${pri.text}`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${pri.dot}`} />
+                      {pri.label}
+                    </span>
+                  </Td>
+                  <Td>
+                    <span className="font-serif text-sm text-foreground">
+                      {item.finalDecision.route}
+                    </span>
+                  </Td>
+                  <Td>
+                    <span
+                      className={`inline-flex items-center gap-1.5 border px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${status.badge}`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${status.dot}`}
+                      />
+                      {item.finalDecision.status === "auto_routed"
+                        ? "Auto"
+                        : "Escalated"}
+                    </span>
+                  </Td>
+                  <Td>
+                    {item.overridden ? (
+                      <span className="inline-flex items-center gap-1.5 border border-purple-300 bg-purple-50 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800">
+                        Overridden
+                      </span>
+                    ) : (
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                        —
+                      </span>
+                    )}
+                  </Td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone?: "green" | "purple";
+}) {
+  const toneClass =
+    tone === "green"
+      ? "text-green-700"
+      : tone === "purple"
+        ? "text-purple-700"
+        : "text-foreground";
+  return (
+    <div className="border border-border bg-card p-4">
+      <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </div>
+      <div className={`mt-1 font-serif text-2xl ${toneClass}`}>{value}</div>
+    </div>
+  );
+}
+
+function Th({ children }: { children: React.ReactNode }) {
+  return (
+    <th className="px-3 py-3 font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+      {children}
+    </th>
+  );
+}
+
+function Td({ children }: { children: React.ReactNode }) {
+  return <td className="px-3 py-3">{children}</td>;
+}
+
+function shorten(text: string, max: number): string {
+  const t = text.trim().replace(/\s+/g, " ");
+  return t.length > max ? t.slice(0, max - 1) + "…" : t;
+}
+
+function formatTime(ts: number): string {
+  const d = new Date(ts);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
 }
