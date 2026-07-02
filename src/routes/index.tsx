@@ -71,6 +71,8 @@ function Index() {
   const [decision, setDecision] = useState<Decision | null>(null);
   const [ruling, setRuling] = useState<RuleResult | null>(null);
   const [processedQueue, setProcessedQueue] = useState<QueueItem[]>([]);
+  // When set, finalizing replaces the existing queue item instead of prepending.
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   const handleTriage = () => {
     if (requestText.trim().length === 0) return;
@@ -79,22 +81,102 @@ function Index() {
     setRuling(applyRules(d, requestText));
   };
 
+  const buildQueueItem = (
+    text: string,
+    final: FinalDecision,
+    d: Decision,
+    r: RuleResult,
+    wasOverridden: boolean,
+  ): QueueItem => ({
+    id:
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : String(Date.now() + Math.random()),
+    timestamp: Date.now(),
+    requestText: text,
+    aiDecision: d,
+    aiRuling: r,
+    finalDecision: final,
+    overridden: wasOverridden,
+  });
+
   const handleFinalize = (final: FinalDecision, wasOverridden: boolean) => {
     if (!decision || !ruling) return;
-    const item: QueueItem = {
-      id:
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : String(Date.now() + Math.random()),
-      timestamp: Date.now(),
-      requestText,
-      aiDecision: decision,
-      aiRuling: ruling,
-      finalDecision: final,
-      overridden: wasOverridden,
-    };
-    setProcessedQueue((prev) => [item, ...prev]);
+    if (reviewingId) {
+      setProcessedQueue((prev) =>
+        prev.map((q) =>
+          q.id === reviewingId
+            ? {
+                ...q,
+                timestamp: Date.now(),
+                finalDecision: final,
+                overridden: wasOverridden || q.overridden,
+              }
+            : q,
+        ),
+      );
+      setReviewingId(null);
+      setActiveTab("queue");
+    } else {
+      setProcessedQueue((prev) => [
+        buildQueueItem(requestText, final, decision, ruling, wasOverridden),
+        ...prev,
+      ]);
+    }
     // Reset the workspace for the next intake.
+    setRequestText("");
+    setDecision(null);
+    setRuling(null);
+  };
+
+  const handleLoadSample = (text: string) => {
+    setRequestText(text);
+    setDecision(null);
+    setRuling(null);
+    setReviewingId(null);
+  };
+
+  const handleTriageAll = () => {
+    const now = Date.now();
+    const items: QueueItem[] = SAMPLE_REQUESTS.map((s, i) => {
+      const d = mockClassify(s.text);
+      const r = applyRules(d, s.text);
+      const final: FinalDecision = {
+        category: d.category,
+        priority: r.priority,
+        route: r.finalRoute,
+        status: r.status,
+        flags: r.flags,
+      };
+      return {
+        id:
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : String(now + i),
+        // Stagger timestamps so table sort by time reads naturally.
+        timestamp: now + i,
+        requestText: s.text,
+        aiDecision: d,
+        aiRuling: r,
+        finalDecision: final,
+        overridden: false,
+      };
+    });
+    // Newest first, and keep any existing items after the batch.
+    setProcessedQueue((prev) => [...items.reverse(), ...prev]);
+    setActiveTab("queue");
+  };
+
+  const handleReview = (item: QueueItem) => {
+    setRequestText(item.requestText);
+    setDecision(item.aiDecision);
+    setRuling(item.aiRuling);
+    setReviewingId(item.id);
+    setActiveTab("triage");
+  };
+
+  const cancelReview = () => {
+    setReviewingId(null);
     setRequestText("");
     setDecision(null);
     setRuling(null);
