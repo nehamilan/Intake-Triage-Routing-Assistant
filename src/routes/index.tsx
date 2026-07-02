@@ -423,13 +423,17 @@ function Index() {
                     Triage Result
                   </h2>
                   <p className="mt-1 font-serif text-sm italic text-muted-foreground">
-                    {decision
-                      ? "Proposed decision — pending human review."
-                      : "No request triaged yet."}
+                    {isClassifying
+                      ? "Consulting the classifier…"
+                      : decision
+                        ? "Proposed decision — pending human review."
+                        : "No request triaged yet."}
                   </p>
                 </div>
 
-                {decision && ruling ? (
+                {isClassifying ? (
+                  <DecisionSkeleton />
+                ) : decision && ruling ? (
                   <DecisionCard
                     key={requestText.slice(0, 24) + processedQueue.length}
                     decision={decision}
