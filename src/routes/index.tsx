@@ -1352,21 +1352,55 @@ function QueueView({
               const status = STATUS_STYLES[item.finalDecision.status];
               const isReviewing = reviewingId === item.id;
               const emb = item.aiRuling.embargo;
+              const isSuperseded = item.supersededById !== undefined;
               return (
                 <tr
                   key={item.id}
-                  className="border-b border-border/60 align-top last:border-b-0"
+                  className={`border-b border-border/60 align-top last:border-b-0 ${
+                    isSuperseded ? "bg-muted/30 text-muted-foreground" : ""
+                  }`}
                 >
                   <Td>
-                    <span className="font-mono text-[11px] text-muted-foreground">
-                      {formatTime(item.timestamp)}
-                    </span>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-mono text-[11px] text-muted-foreground">
+                        {formatTime(item.timestamp)}
+                      </span>
+                      {item.reviewer ? (
+                        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                          by {item.reviewer}
+                        </span>
+                      ) : null}
+                    </div>
                   </Td>
                   <Td>
                     <div className="flex flex-col gap-1">
-                      <span className="line-clamp-2 font-serif text-sm text-foreground">
-                        {shorten(item.requestText, 90)}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex items-center border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${
+                            isSuperseded
+                              ? "border-border bg-background text-muted-foreground line-through"
+                              : item.revision > 1
+                                ? "border-amber-300 bg-amber-50 text-amber-800"
+                                : "border-border bg-background text-muted-foreground"
+                          }`}
+                          title={
+                            isSuperseded
+                              ? "Superseded by a newer revision"
+                              : item.revision > 1
+                                ? "Revised from an earlier decision"
+                                : undefined
+                          }
+                        >
+                          v{item.revision}
+                        </span>
+                        <span
+                          className={`line-clamp-2 font-serif text-sm ${
+                            isSuperseded ? "text-muted-foreground" : "text-foreground"
+                          }`}
+                        >
+                          {shorten(item.requestText, 90)}
+                        </span>
+                      </div>
                       {item.attachments.length > 0 ? (
                         <span
                           title={item.attachments
@@ -1382,7 +1416,7 @@ function QueueView({
                     </div>
                   </Td>
                   <Td>
-                    <span className="font-serif text-sm text-foreground">
+                    <span className="font-serif text-sm">
                       {CATEGORY_LABELS[item.finalDecision.category]}
                     </span>
                   </Td>
@@ -1395,7 +1429,7 @@ function QueueView({
                     </span>
                   </Td>
                   <Td>
-                    <span className="font-serif text-sm text-foreground">
+                    <span className="font-serif text-sm">
                       {item.finalDecision.route}
                     </span>
                   </Td>
@@ -1459,7 +1493,11 @@ function QueueView({
                           : "border border-foreground bg-background px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground transition-colors hover:bg-foreground/5"
                       }
                     >
-                      {isReviewing ? "Reviewing…" : "Review"}
+                      {isReviewing
+                        ? "Open…"
+                        : isSuperseded
+                          ? "View"
+                          : "Open"}
                     </button>
                   </Td>
                 </tr>
