@@ -551,6 +551,7 @@ function Index() {
                     key={requestText.slice(0, 24) + processedQueue.length}
                     decision={decision}
                     ruling={ruling}
+                    attachments={attachments}
                     onFinalize={handleFinalize}
                   />
                 ) : (
