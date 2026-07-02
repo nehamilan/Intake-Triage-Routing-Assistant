@@ -31,9 +31,29 @@ const ClassificationSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
+const AttachmentMetaSchema = z.object({
+  filename: z.string().min(1).max(300),
+  mimeType: z.string().min(1).max(200),
+  sizeBytes: z.number().min(0),
+});
+
 const InputSchema = z.object({
   requestText: z.string().min(1).max(8000),
+  attachments: z.array(AttachmentMetaSchema).max(50).optional().default([]),
 });
+
+type AttachmentMeta = z.infer<typeof AttachmentMetaSchema>;
+
+function renderAttachments(atts: readonly AttachmentMeta[]): string {
+  if (atts.length === 0) return "Attachments: (none)";
+  const lines = atts
+    .map(
+      (a, i) =>
+        `  ${i + 1}. ${a.filename}  (${a.mimeType}, ${a.sizeBytes} bytes)`,
+    )
+    .join("\n");
+  return `Attachments (metadata only — file contents were NOT read):\n${lines}`;
+}
 
 function buildSystemPrompt(rb: Rulebook): string {
   const categoryLines = rb.categories
