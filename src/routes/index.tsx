@@ -55,6 +55,13 @@ interface FinalDecision {
   flags: string[];
 }
 
+type FieldChangeField = "category" | "priority" | "route" | "status";
+interface FieldChange {
+  field: FieldChangeField;
+  from: string;
+  to: string;
+}
+
 interface QueueItem {
   id: string;
   timestamp: number;
@@ -69,8 +76,22 @@ interface QueueItem {
   // otherwise mutated after they land in the queue.
   reviewer: string;
   revision: number;
+  // Shared across every version of a single request; equals the id of v1.
+  // Lets the queue table collapse to one row per request without walking
+  // the supersedesId chain on every render.
+  rootId: string;
   supersedesId?: string;
   supersededById?: string;
+  // Frozen at save time — diff of decision fields vs the previous version
+  // (or vs the AI's proposal on v1). Empty on v1 with no overrides, and
+  // empty on any re-endorsement that changed no decision fields.
+  changes: FieldChange[];
+  // Required whenever changes.length > 0 or the reviewer bypassed a
+  // safety escalation. Empty string is otherwise acceptable.
+  reason: string;
+  // True only when the reviewer routed away from Human Review Queue on a
+  // ruling that was escalated by a guardrail. Records deliberate bypass.
+  guardrailAcknowledged: boolean;
 }
 
 // All routes selectable in the Override control.
@@ -78,6 +99,48 @@ const AVAILABLE_ROUTES: readonly string[] = [
   ...Array.from(new Set(Object.values(RULEBOOK.routes))),
   "Human Review Queue",
 ];
+
+// Human-readable label helpers used inside the audit timeline. Kept next
+// to the types so any change to the label set updates both diffs and the
+// rendered UI in one place.
+const PRIORITY_DISPLAY: Record<Priority, string> = {
+  urgent: "Urgent",
+  normal: "Normal",
+  low: "Low",
+};
+
+function computeChanges(
+  prev: FinalDecision,
+  next: FinalDecision,
+): FieldChange[] {
+  const out: FieldChange[] = [];
+  if (prev.category !== next.category) {
+    out.push({
+      field: "category",
+      from: CATEGORY_LABELS[prev.category],
+      to: CATEGORY_LABELS[next.category],
+    });
+  }
+  if (prev.priority !== next.priority) {
+    out.push({
+      field: "priority",
+      from: PRIORITY_DISPLAY[prev.priority],
+      to: PRIORITY_DISPLAY[next.priority],
+    });
+  }
+  if (prev.route !== next.route) {
+    out.push({ field: "route", from: prev.route, to: next.route });
+  }
+  if (prev.status !== next.status) {
+    out.push({
+      field: "status",
+      from: STATUS_LABELS[prev.status],
+      to: STATUS_LABELS[next.status],
+    });
+  }
+  return out;
+}
+
 
 // ---------- Root component ----------
 
