@@ -2,6 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { RULEBOOK, CATEGORY_LABELS, type Priority } from "@/lib/rulebook";
 import { mockClassify, type Decision } from "@/lib/mock-classify";
+import {
+  applyRules,
+  STATUS_LABELS,
+  type RuleResult,
+  type TriageStatus,
+} from "@/lib/apply-rules";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -29,10 +35,13 @@ function Index() {
   const [requestText, setRequestText] = useState("");
   const [activeTab, setActiveTab] = useState<"triage" | "queue">("triage");
   const [decision, setDecision] = useState<Decision | null>(null);
+  const [ruling, setRuling] = useState<RuleResult | null>(null);
 
   const handleTriage = () => {
     if (requestText.trim().length === 0) return;
-    setDecision(mockClassify(requestText));
+    const d = mockClassify(requestText);
+    setDecision(d);
+    setRuling(applyRules(d, requestText));
   };
 
   return (
@@ -138,8 +147,8 @@ function Index() {
                   </p>
                 </div>
 
-                {decision ? (
-                  <DecisionCard decision={decision} />
+                {decision && ruling ? (
+                  <DecisionCard decision={decision} ruling={ruling} />
                 ) : (
                   <div className="space-y-5">
                     <DecisionRow label="Category" />
@@ -241,13 +250,84 @@ const PRIORITY_STYLES: Record<
   },
 };
 
-function DecisionCard({ decision }: { decision: Decision }) {
-  const pri = PRIORITY_STYLES[decision.priority];
+const STATUS_STYLES: Record<
+  TriageStatus,
+  { badge: string; dot: string; tone: "green" | "purple" }
+> = {
+  auto_routed: {
+    badge:
+      "bg-green-50 border-green-300 text-green-800",
+    dot: "bg-green-600",
+    tone: "green",
+  },
+  escalated_low_confidence: {
+    badge: "bg-purple-50 border-purple-300 text-purple-800",
+    dot: "bg-purple-600",
+    tone: "purple",
+  },
+  escalated_guardrail: {
+    badge: "bg-purple-50 border-purple-300 text-purple-800",
+    dot: "bg-purple-600",
+    tone: "purple",
+  },
+  escalated_privacy_incident: {
+    badge: "bg-purple-50 border-purple-300 text-purple-800",
+    dot: "bg-purple-600",
+    tone: "purple",
+  },
+};
+
+function DecisionCard({
+  decision,
+  ruling,
+}: {
+  decision: Decision;
+  ruling: RuleResult;
+}) {
+  const pri = PRIORITY_STYLES[ruling.priority];
   const pct = Math.round(decision.confidence * 100);
   const belowThreshold = decision.confidence < RULEBOOK.confidenceThreshold;
+  const statusStyle = STATUS_STYLES[ruling.status];
+  const routeOverridden = ruling.finalRoute !== decision.route;
 
   return (
     <div className="space-y-5">
+      {/* Status banner — prominent */}
+      <div
+        className={`flex items-start gap-3 border px-4 py-3 ${statusStyle.badge}`}
+      >
+        <span
+          className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${statusStyle.dot}`}
+        />
+        <div className="flex-1">
+          <div className="font-mono text-[10px] font-bold uppercase tracking-widest">
+            Status
+          </div>
+          <div className="mt-0.5 font-serif text-base leading-tight">
+            {STATUS_LABELS[ruling.status]}
+          </div>
+        </div>
+      </div>
+
+      {/* Flags callout — shown only when guardrails fired */}
+      {ruling.flags.length > 0 ? (
+        <div className="border-l-4 border-purple-600 bg-purple-50/60 p-4">
+          <div className="mb-2 font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800">
+            Guardrail Flags
+          </div>
+          <ul className="space-y-1.5">
+            {ruling.flags.map((f) => (
+              <li
+                key={f}
+                className="font-serif text-sm leading-snug text-purple-900"
+              >
+                — {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-[110px_minmax(0,1fr)] items-baseline gap-4">
         <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           Category
@@ -269,13 +349,20 @@ function DecisionCard({ decision }: { decision: Decision }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-[110px_minmax(0,1fr)] items-baseline gap-4">
+      <div className="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-4">
         <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           Route
         </span>
-        <span className="border-b border-border pb-1 font-serif text-base text-foreground">
-          {decision.route}
-        </span>
+        <div className="flex flex-col gap-1 border-b border-border pb-1">
+          <span className="font-serif text-base text-foreground">
+            {ruling.finalRoute}
+          </span>
+          {routeOverridden ? (
+            <span className="font-mono text-[10px] uppercase tracking-widest text-purple-700">
+              Overrode model suggestion: {decision.route}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <div className="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-4">
@@ -286,6 +373,7 @@ function DecisionCard({ decision }: { decision: Decision }) {
           {decision.reason}
         </p>
       </div>
+
 
       <div className="mt-8 border-t border-dashed border-border pt-6">
         <div className="mb-2 flex items-baseline justify-between">
