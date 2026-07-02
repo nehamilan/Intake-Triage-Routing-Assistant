@@ -549,11 +549,12 @@ function Index() {
                 onClick={() => setActiveTab("queue")}
               >
                 Queue
-                {processedQueue.length > 0 ? (
+                {currentQueue.length > 0 ? (
                   <span className="ml-1.5 rounded-sm bg-foreground px-1.5 py-0.5 font-mono text-[9px] text-background">
-                    {processedQueue.length}
+                    {currentQueue.length}
                   </span>
                 ) : null}
+
               </TabButton>
             </nav>
           </div>
