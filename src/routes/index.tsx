@@ -1313,14 +1313,21 @@ function QueueView({
 
   return (
     <div className="space-y-6">
-      {/* Counters */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Stat label="Processed" value={items.length} />
+      {/* Counters — reflect current versions only; superseded rows are audit history. */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+        <Stat
+          label="Current"
+          value={items.filter((i) => !i.supersededById).length}
+        />
         <Stat label="Auto-routed" value={autoRoutedCount} tone="green" />
         <Stat label="Escalated" value={escalatedCount} tone="purple" />
         <Stat
           label="Overridden"
-          value={items.filter((i) => i.overridden).length}
+          value={items.filter((i) => i.overridden && !i.supersededById).length}
+        />
+        <Stat
+          label="Superseded"
+          value={items.filter((i) => i.supersededById).length}
         />
       </div>
 
