@@ -1283,3 +1283,157 @@ function DecisionSkeleton() {
   );
 }
 
+
+// ---------- Attachments UI ----------
+
+function PaperclipIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-3 w-3"
+      aria-hidden="true"
+    >
+      <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.99 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+    </svg>
+  );
+}
+
+function AttachmentsEditor({
+  attachments,
+  fileInputRef,
+  onAdd,
+  onRemove,
+  disabled,
+}: {
+  attachments: Attachment[];
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  onAdd: (files: FileList | null) => void;
+  onRemove: (id: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Attachments {attachments.length > 0 ? `(${attachments.length})` : ""}
+        </span>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={disabled}
+          className="inline-flex items-center gap-1.5 border border-border bg-background px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground transition-colors hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <PaperclipIcon />
+          Attach files
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => onAdd(e.target.files)}
+        />
+      </div>
+
+      {attachments.length === 0 ? (
+        <p className="font-serif text-xs italic text-muted-foreground">
+          No files attached. If the request mentions attachments but none are
+          present here, the assistant will escalate it to human review.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {attachments.map((a) => (
+            <li
+              key={a.id}
+              className="flex items-center gap-3 border border-border bg-card px-2.5 py-1.5"
+            >
+              <AttachmentThumb attachment={a} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-serif text-sm text-foreground">
+                  {a.filename}
+                </div>
+                <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  {fileKindLabel(a.mimeType)} · {formatBytes(a.sizeBytes)}
+                  {a.note ? ` · ${a.note}` : ""}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onRemove(a.id)}
+                disabled={disabled}
+                aria-label={`Remove ${a.filename}`}
+                className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground transition-colors hover:text-red-700 disabled:opacity-50"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function AttachmentsList({ attachments }: { attachments: Attachment[] }) {
+  return (
+    <ul className="space-y-1.5">
+      {attachments.map((a) => {
+        const inner = (
+          <>
+            <AttachmentThumb attachment={a} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-serif text-sm text-foreground">
+                {a.filename}
+              </div>
+              <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                {fileKindLabel(a.mimeType)} · {formatBytes(a.sizeBytes)}
+                {a.note ? ` · ${a.note}` : ""}
+              </div>
+            </div>
+          </>
+        );
+        const className =
+          "flex items-center gap-3 border border-border bg-card px-2.5 py-1.5";
+        return (
+          <li key={a.id}>
+            {a.objectUrl ? (
+              <a
+                href={a.objectUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={`${className} transition-colors hover:bg-foreground/5`}
+              >
+                {inner}
+              </a>
+            ) : (
+              <div className={className}>{inner}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function AttachmentThumb({ attachment }: { attachment: Attachment }) {
+  if (attachment.objectUrl && isImageMime(attachment.mimeType)) {
+    return (
+      <img
+        src={attachment.objectUrl}
+        alt=""
+        className="h-9 w-9 shrink-0 border border-border object-cover"
+      />
+    );
+  }
+  return (
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-border bg-muted font-mono text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+      {fileKindLabel(attachment.mimeType).slice(0, 3)}
+    </div>
+  );
+}
