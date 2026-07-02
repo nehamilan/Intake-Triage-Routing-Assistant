@@ -10,6 +10,10 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import "@fontsource-variable/inter/index.css";
+import "@fontsource/eb-garamond/400.css";
+import "@fontsource/eb-garamond/500.css";
+import "@fontsource/eb-garamond/400-italic.css";
+import "@fontsource-variable/jetbrains-mono/index.css";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
