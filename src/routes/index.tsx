@@ -481,7 +481,7 @@ function Index() {
                         const s = SAMPLE_REQUESTS.find(
                           (x) => x.id === e.target.value,
                         );
-                        if (s) handleLoadSample(s.text);
+                        if (s) handleLoadSample(s.text, [...s.attachments]);
                       }}
                       className="flex-1 border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none disabled:opacity-50"
                     >
