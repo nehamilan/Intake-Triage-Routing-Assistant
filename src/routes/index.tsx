@@ -216,3 +216,106 @@ function DecisionRow({ label, value = "—", italic, multiline }: DecisionRowPro
     </div>
   );
 }
+
+const PRIORITY_STYLES: Record<
+  Priority,
+  { dot: string; text: string; bg: string; label: string }
+> = {
+  urgent: {
+    dot: "bg-red-600",
+    text: "text-red-700",
+    bg: "bg-red-50 border-red-200",
+    label: "Urgent",
+  },
+  normal: {
+    dot: "bg-amber-500",
+    text: "text-amber-700",
+    bg: "bg-amber-50 border-amber-200",
+    label: "Normal",
+  },
+  low: {
+    dot: "bg-muted-foreground",
+    text: "text-muted-foreground",
+    bg: "bg-muted border-border",
+    label: "Low",
+  },
+};
+
+function DecisionCard({ decision }: { decision: Decision }) {
+  const pri = PRIORITY_STYLES[decision.priority];
+  const pct = Math.round(decision.confidence * 100);
+  const belowThreshold = decision.confidence < RULEBOOK.confidenceThreshold;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-[110px_minmax(0,1fr)] items-baseline gap-4">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Category
+        </span>
+        <span className="border-b border-border pb-1 font-serif text-base text-foreground">
+          {CATEGORY_LABELS[decision.category]}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-4">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Priority
+        </span>
+        <span
+          className={`inline-flex w-fit items-center gap-2 border px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest ${pri.bg} ${pri.text}`}
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${pri.dot}`} />
+          {pri.label}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-[110px_minmax(0,1fr)] items-baseline gap-4">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Route
+        </span>
+        <span className="border-b border-border pb-1 font-serif text-base text-foreground">
+          {decision.route}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-4">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Reasoning
+        </span>
+        <p className="border-b border-border pb-2 font-serif text-sm italic leading-relaxed text-foreground">
+          {decision.reason}
+        </p>
+      </div>
+
+      <div className="mt-8 border-t border-dashed border-border pt-6">
+        <div className="mb-2 flex items-baseline justify-between">
+          <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Confidence Score
+          </span>
+          <span
+            className={`font-serif text-lg ${belowThreshold ? "text-red-700" : "text-foreground"}`}
+          >
+            {pct}%
+          </span>
+        </div>
+        <div
+          className="h-1.5 w-full bg-muted"
+          role="progressbar"
+          aria-valuenow={pct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            className={`h-full ${belowThreshold ? "bg-red-600" : "bg-foreground"}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        {belowThreshold ? (
+          <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-red-700">
+            Below threshold ({RULEBOOK.confidenceThreshold.toFixed(2)}) — flag for review.
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
