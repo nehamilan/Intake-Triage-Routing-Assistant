@@ -324,11 +324,35 @@ function Index() {
                 <button
                   type="button"
                   onClick={handleTriage}
-                  disabled={requestText.trim().length === 0}
-                  className="w-full bg-primary py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground shadow-sm transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={
+                    requestText.trim().length === 0 ||
+                    isClassifying ||
+                    batchProgress !== null
+                  }
+                  className="inline-flex w-full items-center justify-center gap-2 bg-primary py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground shadow-sm transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Triage Request
+                  {isClassifying ? (
+                    <>
+                      <Spinner /> Classifying…
+                    </>
+                  ) : (
+                    "Triage Request"
+                  )}
                 </button>
+
+                {classifyError ? (
+                  <div
+                    role="alert"
+                    className="border-l-4 border-red-600 bg-red-50/70 p-3 font-mono text-[11px] text-red-800"
+                  >
+                    <div className="mb-0.5 font-bold uppercase tracking-widest">
+                      Classifier error
+                    </div>
+                    <div className="font-serif text-sm italic leading-snug">
+                      {classifyError}
+                    </div>
+                  </div>
+                ) : null}
 
                 {/* Sample batch controls */}
                 <div className="border-t border-dashed border-border pt-5">
@@ -349,13 +373,14 @@ function Index() {
                     <select
                       aria-label="Load a sample request"
                       value=""
+                      disabled={isClassifying || batchProgress !== null}
                       onChange={(e) => {
                         const s = SAMPLE_REQUESTS.find(
                           (x) => x.id === e.target.value,
                         );
                         if (s) handleLoadSample(s.text);
                       }}
-                      className="flex-1 border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
+                      className="flex-1 border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none disabled:opacity-50"
                     >
                       <option value="" disabled>
                         Load sample request…
@@ -369,9 +394,16 @@ function Index() {
                     <button
                       type="button"
                       onClick={handleTriageAll}
-                      className="border border-foreground bg-background px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
+                      disabled={isClassifying || batchProgress !== null}
+                      className="inline-flex items-center justify-center gap-2 border border-foreground bg-background px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Triage all
+                      {batchProgress ? (
+                        <>
+                          <Spinner /> {batchProgress.done}/{batchProgress.total}
+                        </>
+                      ) : (
+                        "Triage all"
+                      )}
                     </button>
                   </div>
                 </div>
