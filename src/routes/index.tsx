@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   RULEBOOK,
   CATEGORY_LABELS,
@@ -16,6 +16,12 @@ import {
 } from "@/lib/apply-rules";
 import { SAMPLE_REQUESTS } from "@/lib/sample-requests";
 import { classifyRequest } from "@/lib/classify-request.functions";
+import {
+  type Attachment,
+  fileKindLabel,
+  formatBytes,
+  isImageMime,
+} from "@/lib/attachments";
 
 export const Route = createFileRoute("/")({
   head: () => ({
