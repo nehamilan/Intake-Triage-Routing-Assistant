@@ -124,4 +124,94 @@ export const SAMPLE_REQUESTS: readonly SampleRequest[] = [
     label: "Technical — API bulk transfer failing",
     text: "Our scripted bulk transfer through the API is failing intermittently with a 500 during large downloads. Retries eventually work but it's slowing our pipeline. Can infrastructure investigate the endpoint?",
   },
+  {
+    id: "deposit-versioning",
+    label: "Deposit — versioning a published dataset",
+    text: "We need to submit a corrected version of a dataset that's already published in our collection. How do we upload a new version without breaking the existing DOI, and does the previous version stay accessible?",
+  },
+  {
+    id: "deposit-embargo",
+    label: "Deposit — embargoed release",
+    text: "I'd like to deposit our thesis dataset now but keep it under embargo until the paper is published in about six months. Can curation help me submit the upload with an embargo period configured?",
+  },
+  {
+    id: "metadata-controlled-vocab",
+    label: "Metadata — controlled vocabulary",
+    text: "Do you support a controlled vocabulary for subject keywords? I want to make sure the metadata on our deposit uses standard terms rather than free-text so the description is discoverable.",
+  },
+  {
+    id: "metadata-language",
+    label: "Metadata — non-English description",
+    text: "Our dataset description is currently only in French. Should we also provide an English translation in the metadata, and is there a field for alternative language descriptions?",
+  },
+  {
+    id: "licensing-mixed-sources",
+    label: "Licensing — mixed-source aggregation",
+    text: "We're publishing an aggregated dataset combining outputs from four different projects. The copyright status varies across sources and one has no explicit license. What license should we apply to the combined release?",
+  },
+  {
+    id: "licensing-third-party-images",
+    label: "Licensing — third-party images",
+    text: "Our dataset includes photographs taken by a collaborator who has not yet signed anything. Can we publish under CC-BY without a written copyright transfer, or do we need a license agreement first?",
+  },
+  {
+    id: "technical-search-broken",
+    label: "Technical — search returns nothing",
+    text: "Search on the repository has been returning zero results for common terms since this morning. I've tried different browsers and queries. Could infrastructure check whether the index is down?",
+  },
+  {
+    id: "technical-upload-timeout",
+    label: "Technical — upload times out on large files",
+    text: "Every time I try to upload a 20 GB archive the transfer times out around 90% and I have to start over. The error page shows a 500. Can someone help me deposit this without restarting each time?",
+  },
+  {
+    id: "technical-two-factor",
+    label: "Technical — 2FA lockout",
+    text: "I've lost access to my two-factor device and can't log in to my user account. The password reset flow still asks for the 2FA code. Can infrastructure help me recover the account?",
+  },
+  {
+    id: "preservation-checksums",
+    label: "Preservation — checksum verification",
+    text: "Do you run periodic checksum verification on deposited files? We'd like to confirm the fixity checks and the backup schedule before we commit to preserving our archive here for the long term.",
+  },
+  {
+    id: "preservation-migration",
+    label: "Preservation — format migration policy",
+    text: "What is your policy on format migration? Some of our files are in formats that may not be readable in 10 years, and we want to know whether the repository will migrate them or whether that's on the depositor.",
+  },
+  {
+    id: "restricted-tiered-access",
+    label: "Restricted access — tiered access question",
+    text: "We're planning to publish a sensitive dataset with tiered access: open metadata, restricted data files behind an approval process. Our ethics clearance is in place. Can you walk us through configuring the access levels?",
+  },
+  {
+    id: "restricted-reuse-existing",
+    label: "Restricted access — reuse of already-approved data",
+    text: "I already have approval to access the restricted cohort dataset for Study A. Can I reuse that clearance to analyse the same data for a new paper, or do I need a fresh IRB approval?",
+  },
+  {
+    id: "privacy-screenshot-leak",
+    label: "Privacy — screenshot with participant names",
+    text: "A team member accidentally uploaded a screenshot to a public collection that shows a spreadsheet with participant names visible in the background. Please take it down and let us know whether the file was exposed.",
+  },
+  {
+    id: "privacy-metadata-leak",
+    label: "Privacy — personal data in metadata",
+    text: "We just noticed that the metadata for one of our deposits contains participant initials and dates of birth in the description field. That's personal data that should not be public. Can it be scrubbed immediately?",
+  },
+  {
+    id: "urgent-conference",
+    label: "Urgent — conference deadline",
+    text: "Our poster deadline is today and I need the DOI for our dataset before I can submit. Can curation confirm the metadata is finalised and the DOI is live? ASAP please.",
+  },
+  {
+    id: "general-citation",
+    label: "General — how to cite",
+    text: "Hi, how should users cite a dataset deposited in your repository? Is there a recommended citation format that appears on the landing page?",
+  },
+  {
+    id: "general-training",
+    label: "General — training materials",
+    text: "Do you offer any training materials or workshops on research data management for early-career researchers? Looking for something we can point our new PhD students to.",
+  },
 ];
