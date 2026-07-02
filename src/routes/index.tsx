@@ -250,10 +250,45 @@ const PRIORITY_STYLES: Record<
   },
 };
 
-function DecisionCard({ decision }: { decision: Decision }) {
-  const pri = PRIORITY_STYLES[decision.priority];
+const STATUS_STYLES: Record<
+  TriageStatus,
+  { badge: string; dot: string; tone: "green" | "purple" }
+> = {
+  auto_routed: {
+    badge:
+      "bg-green-50 border-green-300 text-green-800",
+    dot: "bg-green-600",
+    tone: "green",
+  },
+  escalated_low_confidence: {
+    badge: "bg-purple-50 border-purple-300 text-purple-800",
+    dot: "bg-purple-600",
+    tone: "purple",
+  },
+  escalated_guardrail: {
+    badge: "bg-purple-50 border-purple-300 text-purple-800",
+    dot: "bg-purple-600",
+    tone: "purple",
+  },
+  escalated_privacy_incident: {
+    badge: "bg-purple-50 border-purple-300 text-purple-800",
+    dot: "bg-purple-600",
+    tone: "purple",
+  },
+};
+
+function DecisionCard({
+  decision,
+  ruling,
+}: {
+  decision: Decision;
+  ruling: RuleResult;
+}) {
+  const pri = PRIORITY_STYLES[ruling.priority];
   const pct = Math.round(decision.confidence * 100);
   const belowThreshold = decision.confidence < RULEBOOK.confidenceThreshold;
+  const statusStyle = STATUS_STYLES[ruling.status];
+  const routeOverridden = ruling.finalRoute !== decision.route;
 
   return (
     <div className="space-y-5">
