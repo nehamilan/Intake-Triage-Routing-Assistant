@@ -805,13 +805,22 @@ function Index() {
                 ) : (
                   <EmptyDecisionState />
                 )}
+                {reviewingItem && revisionHistory.length > 0 ? (
+                  <RevisionTimeline
+                    revisions={revisionHistory}
+                    currentId={reviewingItem.id}
+                  />
+                ) : null}
               </section>
             </div>
           ) : (
             <QueueView
               items={processedQueue}
+              currentQueue={currentQueue}
               escalatedCount={escalatedCount}
               autoRoutedCount={autoRoutedCount}
+              overriddenCount={overriddenCount}
+              revisionCount={revisionCount}
               onStartNew={() => setActiveTab("triage")}
               onReview={handleReview}
               reviewingId={reviewingId}
@@ -826,10 +835,12 @@ function Index() {
             {RULEBOOK.confidenceThreshold.toFixed(2)}
           </span>
           <span>
-            Processed: {processedQueue.length} · Escalated: {escalatedCount} ·
+            Requests: {currentQueue.length} · Escalated: {escalatedCount} ·
             Auto-routed: {autoRoutedCount}
+            {revisionCount > 0 ? ` · Revisions: ${revisionCount}` : ""}
           </span>
         </footer>
+
       </div>
     </div>
   );
