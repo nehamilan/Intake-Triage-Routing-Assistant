@@ -1551,15 +1551,21 @@ function OverrideField({
 
 function QueueView({
   items,
+  currentQueue,
   escalatedCount,
   autoRoutedCount,
+  overriddenCount,
+  revisionCount,
   onStartNew,
   onReview,
   reviewingId,
 }: {
   items: QueueItem[];
+  currentQueue: QueueItem[];
   escalatedCount: number;
   autoRoutedCount: number;
+  overriddenCount: number;
+  revisionCount: number;
   onStartNew: () => void;
   onReview: (item: QueueItem) => void;
   reviewingId: string | null;
@@ -1584,27 +1590,35 @@ function QueueView({
     );
   }
 
-  const anyEmbargo = items.some((i) => i.aiRuling.embargo.mentioned);
+  // Fold revisions into a single row per request. Table always shows the
+  // latest version; the audit trail lives inside the workspace view.
+  const rows = currentQueue;
+  const anyEmbargo = rows.some((i) => i.aiRuling.embargo.mentioned);
+  // Count revisions per request so the row can advertise them without
+  // having to walk the pointer chain on every render.
+  const revisionsPerRoot = new Map<string, number>();
+  for (const item of items) {
+    revisionsPerRoot.set(
+      item.rootId,
+      (revisionsPerRoot.get(item.rootId) ?? 0) + 1,
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Counters — reflect current versions only; superseded rows are audit history. */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-        <Stat
-          label="Current"
-          value={items.filter((i) => !i.supersededById).length}
-        />
+      {/* Counters — always over current versions. Revisions surface below. */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Stat label="Current" value={rows.length} />
         <Stat label="Auto-routed" value={autoRoutedCount} tone="green" />
         <Stat label="Escalated" value={escalatedCount} tone="purple" />
-        <Stat
-          label="Overridden"
-          value={items.filter((i) => i.overridden && !i.supersededById).length}
-        />
-        <Stat
-          label="Superseded"
-          value={items.filter((i) => i.supersededById).length}
-        />
+        <Stat label="Overridden" value={overriddenCount} />
       </div>
+      <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+        {rows.length} request{rows.length === 1 ? "" : "s"}
+        {revisionCount > 0
+          ? ` · ${revisionCount} superseded revision${revisionCount === 1 ? "" : "s"} in log`
+          : ""}
+      </p>
 
       <div className="overflow-x-auto border border-border bg-card">
         <table className="w-full min-w-[720px] border-collapse text-left">
@@ -1622,18 +1636,16 @@ function QueueView({
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => {
+            {rows.map((item) => {
               const pri = PRIORITY_STYLES[item.finalDecision.priority];
               const status = STATUS_STYLES[item.finalDecision.status];
               const isReviewing = reviewingId === item.id;
               const emb = item.aiRuling.embargo;
-              const isSuperseded = item.supersededById !== undefined;
+              const totalRevisions = revisionsPerRoot.get(item.rootId) ?? 1;
               return (
                 <tr
                   key={item.id}
-                  className={`border-b border-border/60 align-top last:border-b-0 ${
-                    isSuperseded ? "bg-muted/30 text-muted-foreground" : ""
-                  }`}
+                  className="border-b border-border/60 align-top last:border-b-0"
                 >
                   <Td>
                     <div className="flex flex-col gap-0.5">
@@ -1652,27 +1664,19 @@ function QueueView({
                       <div className="flex items-center gap-2">
                         <span
                           className={`inline-flex items-center border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${
-                            isSuperseded
-                              ? "border-border bg-background text-muted-foreground line-through"
-                              : item.revision > 1
-                                ? "border-amber-300 bg-amber-50 text-amber-800"
-                                : "border-border bg-background text-muted-foreground"
+                            item.revision > 1
+                              ? "border-amber-300 bg-amber-50 text-amber-800"
+                              : "border-border bg-background text-muted-foreground"
                           }`}
                           title={
-                            isSuperseded
-                              ? "Superseded by a newer revision"
-                              : item.revision > 1
-                                ? "Revised from an earlier decision"
-                                : undefined
+                            totalRevisions > 1
+                              ? `Revised ${totalRevisions - 1} time${totalRevisions - 1 === 1 ? "" : "s"} — open to view history`
+                              : undefined
                           }
                         >
                           v{item.revision}
                         </span>
-                        <span
-                          className={`line-clamp-2 font-serif text-sm ${
-                            isSuperseded ? "text-muted-foreground" : "text-foreground"
-                          }`}
-                        >
+                        <span className="line-clamp-2 font-serif text-sm text-foreground">
                           {shorten(item.requestText, 90)}
                         </span>
                       </div>
@@ -1770,8 +1774,8 @@ function QueueView({
                     >
                       {isReviewing
                         ? "Open…"
-                        : isSuperseded
-                          ? "View"
+                        : totalRevisions > 1
+                          ? `Open · ${totalRevisions} versions`
                           : "Open"}
                     </button>
                   </Td>
@@ -1784,6 +1788,121 @@ function QueueView({
     </div>
   );
 }
+
+// ---------- Revision Timeline ----------
+
+function RevisionTimeline({
+  revisions,
+  currentId,
+}: {
+  // Newest first. Includes v1 through the latest version.
+  revisions: QueueItem[];
+  currentId: string;
+}) {
+  return (
+    <div className="mt-8 border-t border-border pt-6">
+      <div className="mb-3 flex items-baseline justify-between">
+        <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Revision History
+        </h3>
+        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          {revisions.length} version{revisions.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      <ol className="space-y-3">
+        {revisions.map((r) => {
+          const isCurrent = r.id === currentId;
+          const isV1 = r.revision === 1;
+          const verb = r.guardrailAcknowledged
+            ? "bypassed guardrail"
+            : r.overridden
+              ? isV1
+                ? "overrode AI"
+                : "overrode previous"
+              : isV1
+                ? "accepted"
+                : "re-accepted";
+          return (
+            <li
+              key={r.id}
+              className={`border-l-2 pl-3 ${
+                isCurrent
+                  ? "border-foreground"
+                  : "border-border opacity-80"
+              }`}
+            >
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span
+                  className={`inline-flex items-center border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${
+                    isCurrent
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border bg-background text-muted-foreground"
+                  }`}
+                >
+                  v{r.revision}
+                </span>
+                <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  {formatTime(r.timestamp)}
+                </span>
+                <span className="font-serif text-sm text-foreground">
+                  <span className="font-semibold">
+                    {r.reviewer || "—"}
+                  </span>{" "}
+                  <span className="italic text-muted-foreground">{verb}</span>
+                </span>
+              </div>
+
+              {r.guardrailAcknowledged ? (
+                <div className="mt-1 font-mono text-[10px] uppercase tracking-widest text-red-700">
+                  ⚠ Bypassed safety escalation
+                </div>
+              ) : null}
+
+              <div className="mt-1.5 space-y-0.5 font-serif text-sm text-foreground">
+                {isV1 && r.changes.length === 0 ? (
+                  <div className="text-muted-foreground">
+                    Initial:{" "}
+                    {CATEGORY_LABELS[r.finalDecision.category]} ·{" "}
+                    {PRIORITY_DISPLAY[r.finalDecision.priority]} ·{" "}
+                    {r.finalDecision.route}
+                  </div>
+                ) : r.changes.length === 0 ? (
+                  <div className="italic text-muted-foreground">
+                    No decision fields changed.
+                  </div>
+                ) : (
+                  r.changes.map((c) => (
+                    <div key={c.field}>
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                        {c.field}:
+                      </span>{" "}
+                      <span className="text-muted-foreground line-through">
+                        {c.from}
+                      </span>{" "}
+                      <span className="text-muted-foreground">→</span>{" "}
+                      <span className="font-medium">{c.to}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {r.reason.trim().length > 0 ? (
+                <p className="mt-1.5 font-serif text-sm italic leading-snug text-foreground">
+                  “{r.reason}”
+                </p>
+              ) : !isV1 || r.overridden ? (
+                <p className="mt-1.5 font-serif text-xs italic text-muted-foreground">
+                  (no reason recorded)
+                </p>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 
 function Stat({
   label,
