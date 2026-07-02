@@ -798,11 +798,15 @@ function QueueView({
   escalatedCount,
   autoRoutedCount,
   onStartNew,
+  onReview,
+  reviewingId,
 }: {
   items: QueueItem[];
   escalatedCount: number;
   autoRoutedCount: number;
   onStartNew: () => void;
+  onReview: (item: QueueItem) => void;
+  reviewingId: string | null;
 }) {
   if (items.length === 0) {
     return (
