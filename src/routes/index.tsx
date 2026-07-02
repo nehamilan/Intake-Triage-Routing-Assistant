@@ -76,6 +76,7 @@ const AVAILABLE_ROUTES: readonly string[] = [
 
 function Index() {
   const [requestText, setRequestText] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [activeTab, setActiveTab] = useState<"triage" | "queue">("triage");
   const [decision, setDecision] = useState<Decision | null>(null);
   const [ruling, setRuling] = useState<RuleResult | null>(null);
@@ -92,6 +93,37 @@ function Index() {
   } | null>(null);
 
   const classify = useServerFn(classifyRequest);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Track object URLs we created for real, browser-picked files so we can
+  // revoke them when the workspace resets. We deliberately don't revoke
+  // when moving into the queue — the reviewer might reopen the item.
+  const workspaceObjectUrlsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    return () => {
+      // Best-effort cleanup on unmount.
+      for (const url of workspaceObjectUrlsRef.current) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, []);
+
+  const trackObjectUrl = (url: string) => {
+    workspaceObjectUrlsRef.current.push(url);
+  };
+
+  // Attachment metadata is safe to send to the server; bytes are not sent.
+  const attachmentMeta = (list: readonly Attachment[]) =>
+    list.map((a) => ({
+      filename: a.filename,
+      mimeType: a.mimeType,
+      sizeBytes: a.sizeBytes,
+    }));
 
   const handleTriage = async () => {
     const text = requestText.trim();
@@ -101,9 +133,11 @@ function Index() {
     setRuling(null);
     setIsClassifying(true);
     try {
-      const d = await classify({ data: { requestText: text } });
+      const d = await classify({
+        data: { requestText: text, attachments: attachmentMeta(attachments) },
+      });
       setDecision(d);
-      setRuling(applyRules(d, text));
+      setRuling(applyRules(d, text, attachments));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setClassifyError(message);
@@ -114,6 +148,7 @@ function Index() {
 
   const buildQueueItem = (
     text: string,
+    atts: Attachment[],
     final: FinalDecision,
     d: Decision,
     r: RuleResult,
@@ -125,6 +160,7 @@ function Index() {
         : String(Date.now() + Math.random()),
     timestamp: Date.now(),
     requestText: text,
+    attachments: atts,
     aiDecision: d,
     aiRuling: r,
     finalDecision: final,
@@ -140,6 +176,7 @@ function Index() {
             ? {
                 ...q,
                 timestamp: Date.now(),
+                attachments,
                 finalDecision: final,
                 overridden: wasOverridden || q.overridden,
               }
@@ -150,23 +187,73 @@ function Index() {
       setActiveTab("queue");
     } else {
       setProcessedQueue((prev) => [
-        buildQueueItem(requestText, final, decision, ruling, wasOverridden),
+        buildQueueItem(
+          requestText,
+          attachments,
+          final,
+          decision,
+          ruling,
+          wasOverridden,
+        ),
         ...prev,
       ]);
     }
-    // Reset the workspace for the next intake.
+    // Reset the workspace for the next intake. Keep the object URLs alive so
+    // the queue entry can still render its previews.
+    workspaceObjectUrlsRef.current = [];
     setRequestText("");
+    setAttachments([]);
     setDecision(null);
     setRuling(null);
     setClassifyError(null);
   };
 
-  const handleLoadSample = (text: string) => {
+  const handleLoadSample = (text: string, atts: Attachment[]) => {
     setRequestText(text);
+    setAttachments(atts);
     setDecision(null);
     setRuling(null);
     setReviewingId(null);
     setClassifyError(null);
+  };
+
+  const handleAddFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const additions: Attachment[] = [];
+    for (const file of Array.from(files)) {
+      const mime = file.type || "application/octet-stream";
+      let objectUrl: string | undefined;
+      if (isImageMime(mime)) {
+        objectUrl = URL.createObjectURL(file);
+        trackObjectUrl(objectUrl);
+      }
+      additions.push({
+        id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        filename: file.name,
+        mimeType: mime,
+        sizeBytes: file.size,
+        objectUrl,
+      });
+    }
+    setAttachments((prev) => [...prev, ...additions]);
+    // Reset input so the same file can be re-picked if the user removes it.
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleRemoveAttachment = (id: string) => {
+    setAttachments((prev) => {
+      const target = prev.find((a) => a.id === id);
+      if (target?.objectUrl) {
+        try {
+          URL.revokeObjectURL(target.objectUrl);
+        } catch {
+          // ignore
+        }
+        workspaceObjectUrlsRef.current =
+          workspaceObjectUrlsRef.current.filter((u) => u !== target.objectUrl);
+      }
+      return prev.filter((a) => a.id !== id);
+    });
   };
 
   const handleTriageAll = async () => {
@@ -185,7 +272,12 @@ function Index() {
       const s = SAMPLE_REQUESTS[i];
       let d: Decision;
       try {
-        d = await classify({ data: { requestText: s.text } });
+        d = await classify({
+          data: {
+            requestText: s.text,
+            attachments: attachmentMeta(s.attachments),
+          },
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         d = {
@@ -196,7 +288,7 @@ function Index() {
           confidence: 0,
         };
       }
-      const r = applyRules(d, s.text);
+      const r = applyRules(d, s.text, s.attachments);
       const final: FinalDecision = {
         category: d.category,
         priority: r.priority,
@@ -211,6 +303,7 @@ function Index() {
             : String(now + i),
         timestamp: now + i,
         requestText: s.text,
+        attachments: [...s.attachments],
         aiDecision: d,
         aiRuling: r,
         finalDecision: final,
@@ -226,6 +319,7 @@ function Index() {
 
   const handleReview = (item: QueueItem) => {
     setRequestText(item.requestText);
+    setAttachments(item.attachments);
     setDecision(item.aiDecision);
     setRuling(item.aiRuling);
     setReviewingId(item.id);
@@ -235,9 +329,11 @@ function Index() {
   const cancelReview = () => {
     setReviewingId(null);
     setRequestText("");
+    setAttachments([]);
     setDecision(null);
     setRuling(null);
   };
+
 
   const escalatedCount = processedQueue.filter(
     (q) => q.finalDecision.status !== "auto_routed",
