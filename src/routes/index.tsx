@@ -13,6 +13,7 @@ import {
   type RuleResult,
   type TriageStatus,
 } from "@/lib/apply-rules";
+import { SAMPLE_REQUESTS } from "@/lib/sample-requests";
 
 export const Route = createFileRoute("/")({
   head: () => ({
