@@ -715,6 +715,10 @@ const STATUS_STYLES: Record<
     badge: "bg-purple-50 border-purple-300 text-purple-800",
     dot: "bg-purple-600",
   },
+  escalated_missing_embargo_date: {
+    badge: "bg-purple-50 border-purple-300 text-purple-800",
+    dot: "bg-purple-600",
+  },
 };
 
 // ---------- Decision Card ----------
