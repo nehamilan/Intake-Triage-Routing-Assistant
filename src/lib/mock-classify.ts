@@ -6,6 +6,12 @@ export interface Decision {
   route: string;
   reason: string;
   confidence: number;
+  /**
+   * True when the model response was unparseable, schema-invalid, or referred
+   * to an unknown category. The rules layer treats this as a hard escalation
+   * to human review — the category/priority/route fields are placeholders.
+   */
+  parseFailed?: boolean;
 }
 
 interface KeywordGroup {

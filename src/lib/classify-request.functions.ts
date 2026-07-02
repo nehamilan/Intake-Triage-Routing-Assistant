@@ -10,7 +10,7 @@
  */
 
 import { createServerFn } from "@tanstack/react-start";
-import { generateText, Output, NoObjectGeneratedError } from "ai";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
@@ -95,11 +95,29 @@ function buildSystemPrompt(rb: Rulebook): string {
   ].join("\n");
 }
 
+/**
+ * A fail-safe decision returned whenever the model output is unparseable,
+ * schema-invalid, or names a category the rulebook doesn't know. The
+ * category/priority/route are placeholders — `applyRules` sees
+ * `parseFailed: true` and routes the item to Human Review regardless.
+ */
+function parseFailureDecision(): Decision {
+  return {
+    category: "general_inquiry",
+    priority: "normal",
+    route: RULEBOOK.routes.general_inquiry,
+    reason: "Model output invalid — routed to human review.",
+    confidence: 0,
+    parseFailed: true,
+  };
+}
+
 export const classifyRequest = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data }): Promise<Decision> => {
     const key = process.env.LOVABLE_API_KEY;
     if (!key) {
+      // Operator misconfiguration, not a model failure — surface as an error.
       throw new Error(
         "LOVABLE_API_KEY is not configured on the server. Cannot classify.",
       );
@@ -128,24 +146,32 @@ export const classifyRequest = createServerFn({ method: "POST" })
         output: Output.object({ schema: ClassificationSchema }),
       });
 
-      // Route is derived server-side from the rulebook, not from the model.
+      // Defensive: even though Zod enforced the enum, verify the rulebook
+      // knows this category before trusting its derived route. If the schema
+      // is ever loosened, a hallucinated category still fails safe here.
       const category = output.category as Category;
-      const decision: Decision = {
+      const route = RULEBOOK.routes[category];
+      if (!route) {
+        console.error(
+          "[classifyRequest] Model returned unknown category:",
+          output.category,
+        );
+        return parseFailureDecision();
+      }
+
+      return {
         category,
         priority: output.priority as Priority,
-        route: RULEBOOK.routes[category],
+        route,
         reason: output.reason.trim(),
         confidence: Math.max(0, Math.min(1, output.confidence)),
       };
-      return decision;
     } catch (err) {
-      if (err instanceof NoObjectGeneratedError) {
-        throw new Error(
-          "The model returned an unparseable response. Please try again.",
-        );
-      }
-      // Bubble up a readable message; the client turns it into a toast/inline error.
-      const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`Classification failed: ${message}`);
+      // NoObjectGeneratedError, schema validation failures, JSON parse errors,
+      // and transient gateway errors all funnel here. We never throw — the
+      // whole point of this hardening pass is that a broken model response
+      // becomes a fail-safe escalation, not a crashed request.
+      console.error("[classifyRequest] Model output invalid:", err);
+      return parseFailureDecision();
     }
   });

@@ -9,7 +9,8 @@ export type TriageStatus =
   | "escalated_attachment_mismatch"
   | "escalated_guardrail"
   | "escalated_privacy_incident"
-  | "escalated_missing_embargo_date";
+  | "escalated_missing_embargo_date"
+  | "escalated_parse_failure";
 
 export interface RuleResult {
   finalRoute: string;
@@ -47,58 +48,77 @@ export function applyRules(
   let status: TriageStatus = "auto_routed";
   let priority: Priority = decision.priority;
 
-  // Confidence gate — softest override.
-  if (decision.confidence < RULEBOOK.confidenceThreshold) {
+  // Parse-failure gate — runs FIRST. When the model output was unparseable or
+  // schema-invalid, the decision's category/priority/route are placeholders
+  // and cannot be trusted for auto-routing. Force human review and skip the
+  // model-derived guardrails (they'd be gating on meaningless values). The
+  // text-driven privacy guardrail below still runs, since it doesn't depend
+  // on model output.
+  if (decision.parseFailed) {
     finalRoute = HUMAN_REVIEW;
-    status = "escalated_low_confidence";
-    flags.push(
-      `Confidence ${(decision.confidence * 100).toFixed(0)}% is below threshold ${(
-        RULEBOOK.confidenceThreshold * 100
-      ).toFixed(0)}% — human review required.`,
-    );
+    status = "escalated_parse_failure";
+    flags.push("Model output invalid — routed to human review.");
   }
 
-  // Attachment mismatch — the text references attachments but none arrived.
-  // A reviewer needs to chase the missing files before any routing is safe.
-  if (textMentionsAttachments(requestText) && attachments.length === 0) {
-    finalRoute = HUMAN_REVIEW;
-    status = "escalated_attachment_mismatch";
-    flags.push(
-      "Request references attachments but none were provided — chase the missing files before routing.",
-    );
+  if (!decision.parseFailed) {
+    // Confidence gate — softest override.
+    if (decision.confidence < RULEBOOK.confidenceThreshold) {
+      finalRoute = HUMAN_REVIEW;
+      status = "escalated_low_confidence";
+      flags.push(
+        `Confidence ${(decision.confidence * 100).toFixed(0)}% is below threshold ${(
+          RULEBOOK.confidenceThreshold * 100
+        ).toFixed(0)}% — human review required.`,
+      );
+    }
+
+    // Attachment mismatch — the text references attachments but none arrived.
+    // A reviewer needs to chase the missing files before any routing is safe.
+    if (textMentionsAttachments(requestText) && attachments.length === 0) {
+      finalRoute = HUMAN_REVIEW;
+      status = "escalated_attachment_mismatch";
+      flags.push(
+        "Request references attachments but none were provided — chase the missing files before routing.",
+      );
+    }
+
+    // Guardrail C — embargo mentioned but no exact release date.
+    // Curators can't schedule release without a YYYY-MM-DD; anything vaguer must
+    // be confirmed with the requester before the deposit is routed.
+    if (embargo.mentioned && embargo.reason !== "exact") {
+      finalRoute = HUMAN_REVIEW;
+      status = "escalated_missing_embargo_date";
+      const detail = embargo.rawPhrase ? ` ("${embargo.rawPhrase}")` : "";
+      flags.push(
+        `Embargo mentioned${detail} but no exact release date — curator must confirm anchor and set YYYY-MM-DD.`,
+      );
+    }
+
+    // Guardrail A — restricted-data access without stated approval.
+    const looksLikeAccess =
+      decision.category === "restricted_data_access" ||
+      contains(text, ACCESS_TRIGGERS);
+    const mentionsApproval = contains(text, APPROVAL_TERMS);
+    if (looksLikeAccess && !mentionsApproval) {
+      finalRoute = HUMAN_REVIEW;
+      status = "escalated_guardrail";
+      flags.push(
+        "Access request without stated approval — must not be auto-granted.",
+      );
+    }
   }
 
-  // Guardrail C — embargo mentioned but no exact release date.
-  // Curators can't schedule release without a YYYY-MM-DD; anything vaguer must
-  // be confirmed with the requester before the deposit is routed.
-  if (embargo.mentioned && embargo.reason !== "exact") {
-    finalRoute = HUMAN_REVIEW;
-    status = "escalated_missing_embargo_date";
-    const detail = embargo.rawPhrase ? ` ("${embargo.rawPhrase}")` : "";
-    flags.push(
-      `Embargo mentioned${detail} but no exact release date — curator must confirm anchor and set YYYY-MM-DD.`,
-    );
-  }
-
-  // Guardrail A — restricted-data access without stated approval.
-  const looksLikeAccess =
-    decision.category === "restricted_data_access" ||
-    contains(text, ACCESS_TRIGGERS);
-  const mentionsApproval = contains(text, APPROVAL_TERMS);
-  if (looksLikeAccess && !mentionsApproval) {
-    finalRoute = HUMAN_REVIEW;
-    status = "escalated_guardrail";
-    flags.push(
-      "Access request without stated approval — must not be auto-granted.",
-    );
-  }
-
-  // Guardrail B — suspected privacy incident (highest severity, overrides all).
+  // Guardrail B — suspected privacy incident (highest severity). Runs even on
+  // parse failure because it's driven purely by the request text. Bumps
+  // priority and adds the flag, but does NOT overwrite an existing
+  // parse-failure status — that's a more severe operational signal.
   if (contains(text, PRIVACY_TRIGGERS)) {
     finalRoute = HUMAN_REVIEW;
-    status = "escalated_privacy_incident";
     priority = "urgent";
     flags.push("Suspected privacy incident — mandatory human handling.");
+    if (status !== "escalated_parse_failure") {
+      status = "escalated_privacy_incident";
+    }
   }
 
   return { finalRoute, status, flags, priority, embargo };
@@ -111,4 +131,5 @@ export const STATUS_LABELS: Record<TriageStatus, string> = {
   escalated_guardrail: "Escalated — guardrail",
   escalated_privacy_incident: "Escalated — privacy incident",
   escalated_missing_embargo_date: "Escalated — embargo date missing",
+  escalated_parse_failure: "Escalated — model output invalid",
 };
