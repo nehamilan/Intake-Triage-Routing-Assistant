@@ -852,12 +852,14 @@ function QueueView({
               <Th>Route</Th>
               <Th>Status</Th>
               <Th>Override</Th>
+              <Th>Action</Th>
             </tr>
           </thead>
           <tbody>
             {items.map((item) => {
               const pri = PRIORITY_STYLES[item.finalDecision.priority];
               const status = STATUS_STYLES[item.finalDecision.status];
+              const isReviewing = reviewingId === item.id;
               return (
                 <tr
                   key={item.id}
