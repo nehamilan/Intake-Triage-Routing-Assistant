@@ -1073,12 +1073,31 @@ function QueueView({
       <div className="overflow-x-auto border border-border bg-card">
         <table className="w-full min-w-[720px] border-collapse text-left">
           <thead>
+  const anyEmbargo = items.some((i) => i.aiRuling.embargo.mentioned);
+
+  return (
+    <div className="space-y-6">
+      {/* Counters */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Stat label="Processed" value={items.length} />
+        <Stat label="Auto-routed" value={autoRoutedCount} tone="green" />
+        <Stat label="Escalated" value={escalatedCount} tone="purple" />
+        <Stat
+          label="Overridden"
+          value={items.filter((i) => i.overridden).length}
+        />
+      </div>
+
+      <div className="overflow-x-auto border border-border bg-card">
+        <table className="w-full min-w-[720px] border-collapse text-left">
+          <thead>
             <tr className="border-b border-border">
               <Th>Time</Th>
               <Th>Request</Th>
               <Th>Category</Th>
               <Th>Priority</Th>
               <Th>Route</Th>
+              {anyEmbargo ? <Th>Embargo</Th> : null}
               <Th>Status</Th>
               <Th>Override</Th>
               <Th>Action</Th>
@@ -1089,6 +1108,7 @@ function QueueView({
               const pri = PRIORITY_STYLES[item.finalDecision.priority];
               const status = STATUS_STYLES[item.finalDecision.status];
               const isReviewing = reviewingId === item.id;
+              const emb = item.aiRuling.embargo;
               return (
                 <tr
                   key={item.id}
@@ -1136,6 +1156,33 @@ function QueueView({
                       {item.finalDecision.route}
                     </span>
                   </Td>
+                  {anyEmbargo ? (
+                    <Td>
+                      {emb.mentioned ? (
+                        emb.reason === "exact" && emb.date ? (
+                          <span
+                            title={`Parsed from: ${emb.rawPhrase}`}
+                            className="inline-flex items-center gap-1.5 border border-green-300 bg-green-50 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-green-800"
+                          >
+                            <CalendarIcon />
+                            {emb.date}
+                          </span>
+                        ) : (
+                          <span
+                            title={`Requester wrote: ${emb.rawPhrase ?? "embargo"}`}
+                            className="inline-flex items-center gap-1.5 border border-amber-300 bg-amber-50 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-amber-800"
+                          >
+                            <CalendarIcon />
+                            Date missing
+                          </span>
+                        )
+                      ) : (
+                        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                          —
+                        </span>
+                      )}
+                    </Td>
+                  ) : null}
                   <Td>
                     <span
                       className={`inline-flex items-center gap-1.5 border px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${status.badge}`}
