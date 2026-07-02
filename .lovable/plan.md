@@ -1,79 +1,147 @@
-## Goal
+## Goals
 
-Stop silent re-edits of finalized queue items. Once an item is committed to `processedQueue`, re-opening it shows a **read-only** decision card with reviewer + timestamp. Changes require an explicit **Reopen for revision** action, and saving a revision **appends a new row** while marking the previous one **superseded** — preserving a full audit log.
+Fix two issues with the queue/audit experience:
+
+1. **Counters are misleading.** Drop "Superseded" from the header. Show **Current / Auto-routed / Escalated / Overridden**, all computed over the *latest* version of each request.
+2. **Queue shows one row per version.** Collapse to **one row per request**, with the full revision history living inside that row as a timeline. Every revision records what changed, who did it, when, and why.
 
 ## Design decisions
 
-**Revisions as an append-only log.** Every finalized decision is immutable. A revision is a new row that points back at its predecessor via `supersedesId`; the predecessor gets `supersededById` set. Nothing is ever deleted or mutated in place. This gives us a permanent, honest history and makes future persistence/telemetry trivial.
+### One row per request (Issue 2)
 
-**Reviewer as free-form text, in-memory.** A single "Reviewer name" input lives on the Triage panel. Whatever's typed at Accept/Save time is captured on the row. Persists in component state for the session; no auth, no dropdown. Empty string is allowed but discouraged with a soft placeholder.
+- The queue table is keyed by the **root request id** (the id of v1). Latest version's decision drives the visible row.
+- Version chip on the row (`v3`) signals revision history exists. Opening the row shows the current Decision Card on top, and a **timeline** of every version underneath.
+- Superseded rows still exist in state (immutability preserved) — they're just not their own rows in the table.
 
-**Queue view stays flat.** Superseded rows remain visible in the table but are visually dimmed and tagged "Superseded → v2". No collapsing / threading UI in this pass — it's a log, reviewers should see everything.
+### Timeline format
+
+Each version renders as a compact block:
+
+```
+v3 · 16:31 · ST · overridden
+     Category: Metadata / curation → Deposit assistance
+     Priority: Normal → High
+     "Author confirmed this is a new deposit, not a metadata fix."
+
+v2 · 16:29 · NM · overridden
+     Category: Deposit assistance → Metadata / curation
+     (no reason recorded)
+
+v1 · 16:28 · NM · accepted
+     Initial: Deposit assistance · Normal · Human Review Queue
+```
+
+- v1 shows initial values (no diff).
+- Later versions show only fields that changed, arrow-formatted.
+- Action verb (`accepted` / `overridden` / `re-accepted`) is derived from `overridden` + `changes.length`.
+- Guardrail bypasses are called out with a distinct marker (see below).
+
+### Change tracking
+
+At save time, compute a `changes` array by comparing the previous version's snapshot with the new one. Frozen onto the new row; never recomputed on render.
+
+```ts
+type FieldChange = {
+  field: "category" | "priority" | "route" | "status";
+  from: string;
+  to: string;
+};
+```
+
+- Only decision-relevant fields are tracked (category, priority, route, status).
+- Reviewer name and timestamp are metadata, not "changes."
+- Flags/embargo state are derived from the request text — out of scope for `changes`.
+- `changes: []` is valid and meaningful — a plain re-endorsement by a new reviewer is a real audit event.
+
+### Reason field
+
+New `reason: string` on each revision row. UX rules:
+
+- **Required** when `changes.length > 0` (the reviewer changed something the AI or a previous reviewer decided).
+- **Optional** on plain acceptance of the AI's proposal (v1 with no override) or a re-accept with no field changes.
+- Rendered as a placeholder in Draft/Revising mode: *"Required — why are you overriding?"* vs *"Optional — add context for the audit log"*.
+- Save button disabled with hint text when required and empty. No hard minimum word count. Soft guidance ~500 chars.
+
+### Guardrail-bypass acknowledgment
+
+When the current ruling has an escalation status (`escalated_low_confidence`, `escalated_guardrail`, `escalated_privacy_incident`, `escalated_parse_failure`, `escalated_embargo_missing_date`, `escalated_attachment_missing`) AND the reviewer overrides it to auto-route:
+
+- Show a distinct **"I acknowledge I am overriding a safety escalation"** checkbox above the reason field, with the specific flag(s) listed inline.
+- Both checkbox AND reason are required to save.
+- Store `guardrailAcknowledged: true` on the revision row.
+- Timeline marks this version with a warning icon and a line: *"⚠ Bypassed guardrail: <flag summary>"* above the diff.
 
 ## Data model changes
 
-`src/routes/index.tsx` — extend the `ProcessedItem` shape:
+`src/routes/index.tsx` — extend `QueueItem`:
 
 ```ts
-interface ProcessedItem {
-  id: string;
-  timestamp: number;
-  requestText: string;
-  attachments: Attachment[];
-  aiDecision: Decision;
-  finalDecision: { category; priority; route };
-  ruleResult: RuleResult;
-  overridden: boolean;
+interface QueueItem {
+  // ... existing fields ...
+  reviewer: string;
+  revision: number;
+  supersedesId?: string;
+  supersededById?: string;
   // NEW
-  reviewer: string;              // free-form, may be ""
-  revision: number;              // 1 for first commit, 2+ for revisions
-  supersedesId?: string;         // id of the row this replaces
-  supersededById?: string;       // set on the old row when a revision is saved
+  rootId: string;                // id of v1; same across all revisions of one request
+  changes: FieldChange[];        // empty on v1; diff vs previous version otherwise
+  reason: string;                // empty allowed only when changes.length === 0 and no guardrail bypass
+  guardrailAcknowledged: boolean;// true only when reviewer bypassed an escalation
 }
 ```
 
+`rootId` lets us group revisions in the table without walking the `supersedesId` chain on every render.
+
 ## Behavior changes
 
-### Triage panel
-- Add a "Reviewer name" text input above the Triage/Load-sample buttons. Value held in a `reviewer` state string. Placeholder: "Your name (shown on finalized decisions)".
-- Passed into every Accept / Save-override call.
+### Header counters
 
-### Decision Card — three modes
-1. **Draft** (default, item not yet in queue): current behavior — Accept + Override controls, confidence bar, flags.
-2. **Finalized** (opened from Queue via Review, and this row has no `supersededById`): read-only.
-   - Header banner: `Finalized · v{n} · Accepted by {reviewer || "—"} · {relative time}`.
-   - Show final category / priority / route / status / flags / embargo exactly as committed.
-   - Replace Accept + Override with a single **Reopen for revision** button.
-3. **Revising** (user clicked Reopen): controls unlock again, banner changes to `Revising v{n} → will save as v{n+1}`. Accept button relabels to **Save as revision v{n+1}**. Cancel button returns to Finalized mode.
-
-### Save-as-revision
-- Builds a new `ProcessedItem` with `revision = prev.revision + 1`, `supersedesId = prev.id`, fresh `timestamp`, and current `reviewer`.
-- Updates the previous row in place to set `supersededById = new.id` (this is the *only* mutation of an existing row — a pointer, not a decision change).
-- Appends the new row to `processedQueue`.
-- Toast: "Saved revision v{n+1}. Previous version marked superseded."
+- Replace 5 tiles with 4: **Current / Auto-routed / Escalated / Overridden**.
+- All computed over `queue.filter(item => !item.supersededById)` — the latest version of each request.
+- Small muted line below: `N requests · M revisions in log` so the audit volume is still visible.
 
 ### Queue table
-- New column **Rev** showing `v1`, `v2`, etc.
-- Superseded rows: row opacity `0.55`, a small "Superseded" pill next to the Rev cell, and the Review action label changes to **View** (opens read-only, no Reopen button — you can only revise the current version).
-- Reviewer column added (or folded into the timestamp cell as `12:04 · Alex`).
-- Summary counters (escalated vs auto-routed) count **current versions only** — filter out rows where `supersededById` is set. Add a small muted line: `+ {n} superseded revisions in log`.
 
-### Re-triage from Triage panel
-When a request is already in the queue and the user clicks Triage again on the same text (fresh triage, not via Review), treat it as a brand-new draft — no auto-linking. Revisions only happen via the Reopen flow. This keeps the audit trail unambiguous: revisions are explicit reviewer actions, not accidental re-runs.
+- One row per `rootId`. Row content driven by the latest version.
+- **Rev** column shows `v{n}` for the current version. Clicking the row (or a "View" / "Open…" button) opens it in the workspace.
+- No more dimmed/struck superseded rows in the table.
+- Reviewer column shows the latest version's reviewer.
+
+### Workspace (right panel) when viewing a queued item
+
+- Top: current Decision Card (read-only until Reopen).
+- Below the card: **Revision timeline** — one block per version, newest first, formatted as above.
+- Reopen for revision behavior unchanged (unlocks controls, save appends a new version).
+
+### Save flow (append revision)
+
+On save:
+1. Compute `changes` by diffing current form values against the previous version's snapshot.
+2. Validate: if `changes.length > 0`, require non-empty `reason`. If overriding an escalation, require both `guardrailAcknowledged` and non-empty `reason`.
+3. Append new `QueueItem` with `revision = prev.revision + 1`, `rootId = prev.rootId`, `supersedesId = prev.id`, current `reviewer`, computed `changes`, `reason`, `guardrailAcknowledged`.
+4. Set `prev.supersededById = new.id`.
+5. Toast: *"Saved revision v{n+1}."*
+
+### First-time finalize (v1)
+
+- `rootId = self.id`, `revision = 1`, `changes = []`, `reason = ""` (optional), `guardrailAcknowledged = false` unless the reviewer overrode a guardrail on the initial pass — in which case the same acknowledgment + reason rules apply.
 
 ## Files touched
 
-- `src/routes/index.tsx` — all of the above (state, card modes, queue table, reviewer input, revision handler).
-- No changes to `apply-rules.ts`, `classify-request.functions.ts`, `rulebook.ts`, `embargo.ts`, `attachments.ts`, or sample data.
-
-## Verification
-
-- Type-check passes.
-- Manual: Accept a sample → Queue shows v1 with reviewer. Click Review → card is read-only with banner. Click Reopen → controls unlock, Save as v2. Queue now shows v1 dimmed + "Superseded", v2 active. Counters reflect v2 only. Click Review on v1 → read-only view, no Reopen button.
+- `src/routes/index.tsx` — all UI, state, timeline component, counter changes.
+- No changes to `apply-rules.ts`, `classify-request.functions.ts`, `rulebook.ts`, `embargo.ts`, `attachments.ts`, sample data.
 
 ## Out of scope
 
 - Persistence (still in-memory).
-- Diff view between revisions (v1 vs v2 side-by-side) — nice-to-have, defer.
-- Reviewer identity from auth — not until we add users.
-- Collapsing superseded rows behind a toggle — defer until the log gets noisy.
+- Side-by-side diff view of two arbitrary versions.
+- Editing request text after finalize (still locked).
+- Reason on `flags` changes (flags are derived, not reviewer-set).
+
+## Verification
+
+- Accept v1 with no override → no reason required, saves cleanly. Queue shows one row, `v1`.
+- Reopen → override category → try to save without reason → save blocked with hint. Add reason → saves as v2. Queue still one row, chip now `v2`, timeline shows v1 and v2 with the diff and reason.
+- Reopen v2 → override an escalated (guardrail) status → checkbox appears, both checkbox and reason required. Save → v3 appears in timeline with the ⚠ bypass marker.
+- Reopen v3 → click Save with no field changes → saves as v4 with `changes: []`, timeline reads "re-accepted, no changes."
+- Header shows Current=1, Overridden reflects latest version only. Muted line reads `1 request · 3 revisions in log`.

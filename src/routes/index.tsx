@@ -55,6 +55,13 @@ interface FinalDecision {
   flags: string[];
 }
 
+type FieldChangeField = "category" | "priority" | "route" | "status";
+interface FieldChange {
+  field: FieldChangeField;
+  from: string;
+  to: string;
+}
+
 interface QueueItem {
   id: string;
   timestamp: number;
@@ -69,8 +76,22 @@ interface QueueItem {
   // otherwise mutated after they land in the queue.
   reviewer: string;
   revision: number;
+  // Shared across every version of a single request; equals the id of v1.
+  // Lets the queue table collapse to one row per request without walking
+  // the supersedesId chain on every render.
+  rootId: string;
   supersedesId?: string;
   supersededById?: string;
+  // Frozen at save time — diff of decision fields vs the previous version
+  // (or vs the AI's proposal on v1). Empty on v1 with no overrides, and
+  // empty on any re-endorsement that changed no decision fields.
+  changes: FieldChange[];
+  // Required whenever changes.length > 0 or the reviewer bypassed a
+  // safety escalation. Empty string is otherwise acceptable.
+  reason: string;
+  // True only when the reviewer routed away from Human Review Queue on a
+  // ruling that was escalated by a guardrail. Records deliberate bypass.
+  guardrailAcknowledged: boolean;
 }
 
 // All routes selectable in the Override control.
@@ -78,6 +99,48 @@ const AVAILABLE_ROUTES: readonly string[] = [
   ...Array.from(new Set(Object.values(RULEBOOK.routes))),
   "Human Review Queue",
 ];
+
+// Human-readable label helpers used inside the audit timeline. Kept next
+// to the types so any change to the label set updates both diffs and the
+// rendered UI in one place.
+const PRIORITY_DISPLAY: Record<Priority, string> = {
+  urgent: "Urgent",
+  normal: "Normal",
+  low: "Low",
+};
+
+function computeChanges(
+  prev: FinalDecision,
+  next: FinalDecision,
+): FieldChange[] {
+  const out: FieldChange[] = [];
+  if (prev.category !== next.category) {
+    out.push({
+      field: "category",
+      from: CATEGORY_LABELS[prev.category],
+      to: CATEGORY_LABELS[next.category],
+    });
+  }
+  if (prev.priority !== next.priority) {
+    out.push({
+      field: "priority",
+      from: PRIORITY_DISPLAY[prev.priority],
+      to: PRIORITY_DISPLAY[next.priority],
+    });
+  }
+  if (prev.route !== next.route) {
+    out.push({ field: "route", from: prev.route, to: next.route });
+  }
+  if (prev.status !== next.status) {
+    out.push({
+      field: "status",
+      from: STATUS_LABELS[prev.status],
+      to: STATUS_LABELS[next.status],
+    });
+  }
+  return out;
+}
+
 
 // ---------- Root component ----------
 
@@ -173,24 +236,40 @@ function Index() {
     opts: {
       reviewer: string;
       revision: number;
+      rootId?: string;
       supersedesId?: string;
       id?: string;
+      changes: FieldChange[];
+      reason: string;
+      guardrailAcknowledged: boolean;
     },
-  ): QueueItem => ({
-    id: opts.id ?? newId(),
-    timestamp: Date.now(),
-    requestText: text,
-    attachments: atts,
-    aiDecision: d,
-    aiRuling: r,
-    finalDecision: final,
-    overridden: wasOverridden,
-    reviewer: opts.reviewer,
-    revision: opts.revision,
-    supersedesId: opts.supersedesId,
-  });
+  ): QueueItem => {
+    const id = opts.id ?? newId();
+    return {
+      id,
+      timestamp: Date.now(),
+      requestText: text,
+      attachments: atts,
+      aiDecision: d,
+      aiRuling: r,
+      finalDecision: final,
+      overridden: wasOverridden,
+      reviewer: opts.reviewer,
+      revision: opts.revision,
+      rootId: opts.rootId ?? id,
+      supersedesId: opts.supersedesId,
+      changes: opts.changes,
+      reason: opts.reason,
+      guardrailAcknowledged: opts.guardrailAcknowledged,
+    };
+  };
 
-  const handleFinalize = (final: FinalDecision, wasOverridden: boolean) => {
+  const handleFinalize = (
+    final: FinalDecision,
+    wasOverridden: boolean,
+    reason: string,
+    guardrailAcknowledged: boolean,
+  ) => {
     if (!decision || !ruling) return;
     const reviewerName = reviewer.trim();
     if (reviewingId && isRevising) {
@@ -199,6 +278,7 @@ function Index() {
       // existing queue entry — decisions themselves stay immutable.
       const prev = processedQueue.find((q) => q.id === reviewingId);
       if (!prev) return;
+      const changes = computeChanges(prev.finalDecision, final);
       const newRow = buildQueueItem(
         prev.requestText,
         prev.attachments,
@@ -209,7 +289,11 @@ function Index() {
         {
           reviewer: reviewerName,
           revision: prev.revision + 1,
+          rootId: prev.rootId,
           supersedesId: prev.id,
+          changes,
+          reason,
+          guardrailAcknowledged,
         },
       );
       setProcessedQueue((queue) => [
@@ -222,6 +306,16 @@ function Index() {
       setIsRevising(false);
       setActiveTab("queue");
     } else {
+      // v1: diff vs the AI's proposal so that an override on first pass still
+      // shows what changed relative to the model's suggestion.
+      const aiBaseline: FinalDecision = {
+        category: decision.category,
+        priority: ruling.priority,
+        route: ruling.finalRoute,
+        status: ruling.status,
+        flags: ruling.flags,
+      };
+      const changes = computeChanges(aiBaseline, final);
       setProcessedQueue((prev) => [
         buildQueueItem(
           requestText,
@@ -230,7 +324,13 @@ function Index() {
           decision,
           ruling,
           wasOverridden,
-          { reviewer: reviewerName, revision: 1 },
+          {
+            reviewer: reviewerName,
+            revision: 1,
+            changes,
+            reason,
+            guardrailAcknowledged,
+          },
         ),
         ...prev,
       ]);
@@ -244,6 +344,7 @@ function Index() {
     setRuling(null);
     setClassifyError(null);
   };
+
 
 
   const handleLoadSample = (text: string, atts: Attachment[]) => {
@@ -334,11 +435,12 @@ function Index() {
         status: r.status,
         flags: r.flags,
       };
+      const rowId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : String(now + i);
       items.push({
-        id:
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : String(now + i),
+        id: rowId,
         timestamp: now + i,
         requestText: s.text,
         attachments: [...s.attachments],
@@ -348,6 +450,10 @@ function Index() {
         overridden: false,
         reviewer: reviewer.trim(),
         revision: 1,
+        rootId: rowId,
+        changes: [],
+        reason: "",
+        guardrailAcknowledged: false,
       });
       setBatchProgress({ done: i + 1, total });
     }
@@ -395,20 +501,30 @@ function Index() {
   };
 
 
-  // Counters reflect current versions only — superseded revisions stay in the
-  // log but shouldn't inflate the escalated / auto-routed totals.
+  // Counters and the queue table both reflect current versions only —
+  // superseded revisions stay in the log but shouldn't inflate KPIs and
+  // shouldn't show up as their own rows in the table.
   const currentQueue = processedQueue.filter((q) => !q.supersededById);
-  const supersededCount = processedQueue.length - currentQueue.length;
+  const revisionCount = processedQueue.length - currentQueue.length;
   const escalatedCount = currentQueue.filter(
     (q) => q.finalDecision.status !== "auto_routed",
   ).length;
   const autoRoutedCount = currentQueue.length - escalatedCount;
+  const overriddenCount = currentQueue.filter((q) => q.overridden).length;
 
   const reviewingItem = reviewingId
     ? processedQueue.find((q) => q.id === reviewingId) ?? null
     : null;
   const isSupersededView =
     reviewingItem !== null && reviewingItem.supersededById !== undefined;
+  // Full revision chain for the request currently open in the workspace,
+  // newest first. Drives the audit timeline below the Decision Card.
+  const revisionHistory: QueueItem[] = reviewingItem
+    ? processedQueue
+        .filter((q) => q.rootId === reviewingItem.rootId)
+        .sort((a, b) => b.revision - a.revision)
+    : [];
+
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -433,11 +549,12 @@ function Index() {
                 onClick={() => setActiveTab("queue")}
               >
                 Queue
-                {processedQueue.length > 0 ? (
+                {currentQueue.length > 0 ? (
                   <span className="ml-1.5 rounded-sm bg-foreground px-1.5 py-0.5 font-mono text-[9px] text-background">
-                    {processedQueue.length}
+                    {currentQueue.length}
                   </span>
                 ) : null}
+
               </TabButton>
             </nav>
           </div>
@@ -688,13 +805,22 @@ function Index() {
                 ) : (
                   <EmptyDecisionState />
                 )}
+                {reviewingItem && revisionHistory.length > 0 ? (
+                  <RevisionTimeline
+                    revisions={revisionHistory}
+                    currentId={reviewingItem.id}
+                  />
+                ) : null}
               </section>
             </div>
           ) : (
             <QueueView
               items={processedQueue}
+              currentQueue={currentQueue}
               escalatedCount={escalatedCount}
               autoRoutedCount={autoRoutedCount}
+              overriddenCount={overriddenCount}
+              revisionCount={revisionCount}
               onStartNew={() => setActiveTab("triage")}
               onReview={handleReview}
               reviewingId={reviewingId}
@@ -709,10 +835,12 @@ function Index() {
             {RULEBOOK.confidenceThreshold.toFixed(2)}
           </span>
           <span>
-            Processed: {processedQueue.length} · Escalated: {escalatedCount} ·
+            Requests: {currentQueue.length} · Escalated: {escalatedCount} ·
             Auto-routed: {autoRoutedCount}
+            {revisionCount > 0 ? ` · Revisions: ${revisionCount}` : ""}
           </span>
         </footer>
+
       </div>
     </div>
   );
@@ -874,7 +1002,12 @@ function DecisionCard({
   decision: Decision;
   ruling: RuleResult;
   attachments: Attachment[];
-  onFinalize: (final: FinalDecision, wasOverridden: boolean) => void;
+  onFinalize: (
+    final: FinalDecision,
+    wasOverridden: boolean,
+    reason: string,
+    guardrailAcknowledged: boolean,
+  ) => void;
   mode: "draft" | "finalized" | "revising" | "superseded";
   reviewer: string;
   onReviewerChange: (v: string) => void;
@@ -883,7 +1016,6 @@ function DecisionCard({
   onReopen: () => void;
   onCancelRevision: () => void;
 }) {
-  const isEditable = mode === "draft" || mode === "revising";
   // Editable draft state for Override. In "revising" mode, we open the form
   // pre-populated with the finalized values so reviewers see what they're
   // changing from.
@@ -891,6 +1023,11 @@ function DecisionCard({
   const [draftCategory, setDraftCategory] = useState<Category>(decision.category);
   const [draftPriority, setDraftPriority] = useState<Priority>(ruling.priority);
   const [draftRoute, setDraftRoute] = useState<string>(ruling.finalRoute);
+  // Reason + acknowledgment are session-scoped to this card instance. The
+  // parent remounts the card on mode changes via `key`, so state resets
+  // naturally between draft/revising sessions.
+  const [reason, setReason] = useState("");
+  const [ackGuardrail, setAckGuardrail] = useState(false);
 
   const pri = PRIORITY_STYLES[ruling.priority];
   const pct = Math.round(decision.confidence * 100);
@@ -898,7 +1035,15 @@ function DecisionCard({
   const statusStyle = STATUS_STYLES[ruling.status];
   const routeOverridden = ruling.finalRoute !== decision.route;
   const reviewerReady = reviewer.trim().length > 0;
+  const reasonTrimmed = reason.trim();
 
+  // The baseline for detecting "changes" and "guardrail bypass" is whatever
+  // the card is showing right now — the AI's proposal on v1, or the last
+  // finalized decision when revising.
+  const baselineIsEscalated = ruling.status !== "auto_routed";
+
+  // Accept-as-is keeps the current status, so no bypass is possible; only
+  // a reason is optional.
   const acceptAsIs = () => {
     if (!reviewerReady) return;
     onFinalize(
@@ -910,24 +1055,43 @@ function DecisionCard({
         flags: ruling.flags,
       },
       false,
+      reasonTrimmed,
+      false,
     );
   };
 
+  // In override, a bypass occurs when the ruling is currently escalated and
+  // the reviewer routes the request away from the Human Review Queue. In
+  // that case the final status flips to auto_routed and we require an
+  // explicit acknowledgment plus a reason.
+  const willBypassGuardrail =
+    editing && baselineIsEscalated && draftRoute !== "Human Review Queue";
+  const overrideChanged =
+    draftCategory !== decision.category ||
+    draftPriority !== ruling.priority ||
+    draftRoute !== ruling.finalRoute;
+  const overrideReasonRequired = overrideChanged || willBypassGuardrail;
+  const canSaveOverride =
+    reviewerReady &&
+    (!overrideReasonRequired || reasonTrimmed.length > 0) &&
+    (!willBypassGuardrail || ackGuardrail);
+
   const saveOverride = () => {
-    if (!reviewerReady) return;
-    const changed =
-      draftCategory !== decision.category ||
-      draftPriority !== ruling.priority ||
-      draftRoute !== ruling.finalRoute;
+    if (!canSaveOverride) return;
+    const finalStatus: TriageStatus = willBypassGuardrail
+      ? "auto_routed"
+      : ruling.status;
     onFinalize(
       {
         category: draftCategory,
         priority: draftPriority,
         route: draftRoute,
-        status: ruling.status,
+        status: finalStatus,
         flags: ruling.flags,
       },
-      changed,
+      overrideChanged || willBypassGuardrail,
+      reasonTrimmed,
+      willBypassGuardrail,
     );
     setEditing(false);
   };
@@ -992,9 +1156,6 @@ function DecisionCard({
       ) : null}
 
       {ruling.embargo.mentioned ? <EmbargoRow embargo={ruling.embargo} /> : null}
-
-
-
 
       <div className="grid grid-cols-[110px_minmax(0,1fr)] items-baseline gap-4">
         <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -1124,6 +1285,12 @@ function DecisionCard({
         ) : !editing ? (
           <div className="space-y-4">
             <ReviewerField value={reviewer} onChange={onReviewerChange} />
+            <ReasonField
+              value={reason}
+              onChange={setReason}
+              required={false}
+              helper="Optional — add context for the audit log."
+            />
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="button"
@@ -1193,6 +1360,46 @@ function DecisionCard({
               </select>
             </OverrideField>
 
+            {willBypassGuardrail ? (
+              <label className="flex items-start gap-3 border-l-4 border-red-600 bg-red-50/70 p-3">
+                <input
+                  type="checkbox"
+                  checked={ackGuardrail}
+                  onChange={(e) => setAckGuardrail(e.target.checked)}
+                  className="mt-1 h-4 w-4 shrink-0"
+                />
+                <span className="font-serif text-sm leading-snug text-red-900">
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-red-800">
+                    Safety escalation bypass
+                  </span>
+                  <br />
+                  I acknowledge I am overriding a safety escalation
+                  {ruling.flags.length > 0 ? (
+                    <>
+                      {" "}
+                      (<span className="italic">
+                        {ruling.flags.join("; ")}
+                      </span>)
+                    </>
+                  ) : null}{" "}
+                  and routing this request out of the Human Review Queue.
+                </span>
+              </label>
+            ) : null}
+
+            <ReasonField
+              value={reason}
+              onChange={setReason}
+              required={overrideReasonRequired}
+              helper={
+                overrideReasonRequired
+                  ? willBypassGuardrail
+                    ? "Required — explain why bypassing the safety escalation is appropriate."
+                    : "Required — explain why you are changing this decision."
+                  : "Optional — add context for the audit log."
+              }
+            />
+
             <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
               <button
                 type="button"
@@ -1205,6 +1412,8 @@ function DecisionCard({
                   setDraftCategory(decision.category);
                   setDraftPriority(ruling.priority);
                   setDraftRoute(ruling.finalRoute);
+                  setReason("");
+                  setAckGuardrail(false);
                 }}
                 className="border border-border bg-background py-2.5 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
               >
@@ -1213,8 +1422,16 @@ function DecisionCard({
               <button
                 type="button"
                 onClick={saveOverride}
-                disabled={!reviewerReady}
-                title={reviewerReady ? undefined : "Enter your name to save."}
+                disabled={!canSaveOverride}
+                title={
+                  !reviewerReady
+                    ? "Enter your name to save."
+                    : overrideReasonRequired && reasonTrimmed.length === 0
+                      ? "A reason is required for this change."
+                      : willBypassGuardrail && !ackGuardrail
+                        ? "Acknowledge the safety escalation bypass to continue."
+                        : undefined
+                }
                 className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {mode === "revising" ? "Save as revision" : "Save Override"}
@@ -1223,10 +1440,68 @@ function DecisionCard({
           </div>
         )}
       </div>
-      {isEditable ? null : null}
     </div>
   );
 }
+
+function ReasonField({
+  value,
+  onChange,
+  required,
+  helper,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  required: boolean;
+  helper: string;
+}) {
+  const empty = value.trim().length === 0;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <label
+          htmlFor="reason-textarea"
+          className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
+        >
+          Reason for change{" "}
+          {required ? (
+            <span className="text-red-700">*</span>
+          ) : (
+            <span className="text-muted-foreground/70">(optional)</span>
+          )}
+        </label>
+        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          {value.length}/500
+        </span>
+      </div>
+      <textarea
+        id="reason-textarea"
+        value={value}
+        maxLength={500}
+        onChange={(e) => onChange(e.target.value)}
+        rows={3}
+        placeholder={
+          required
+            ? "Why are you changing this decision? (recorded in the audit log)"
+            : "Add context for the audit log."
+        }
+        className={`w-full resize-none border bg-background px-3 py-2 font-serif text-sm text-foreground focus:outline-none ${
+          required && empty
+            ? "border-red-300 focus:border-red-600"
+            : "border-border focus:border-foreground"
+        }`}
+      />
+      <p
+        className={`font-serif text-xs italic ${
+          required && empty ? "text-red-700" : "text-muted-foreground"
+        }`}
+      >
+        {helper}
+      </p>
+    </div>
+  );
+}
+
 
 function ReviewerField({
   value,
@@ -1276,15 +1551,21 @@ function OverrideField({
 
 function QueueView({
   items,
+  currentQueue,
   escalatedCount,
   autoRoutedCount,
+  overriddenCount,
+  revisionCount,
   onStartNew,
   onReview,
   reviewingId,
 }: {
   items: QueueItem[];
+  currentQueue: QueueItem[];
   escalatedCount: number;
   autoRoutedCount: number;
+  overriddenCount: number;
+  revisionCount: number;
   onStartNew: () => void;
   onReview: (item: QueueItem) => void;
   reviewingId: string | null;
@@ -1309,27 +1590,35 @@ function QueueView({
     );
   }
 
-  const anyEmbargo = items.some((i) => i.aiRuling.embargo.mentioned);
+  // Fold revisions into a single row per request. Table always shows the
+  // latest version; the audit trail lives inside the workspace view.
+  const rows = currentQueue;
+  const anyEmbargo = rows.some((i) => i.aiRuling.embargo.mentioned);
+  // Count revisions per request so the row can advertise them without
+  // having to walk the pointer chain on every render.
+  const revisionsPerRoot = new Map<string, number>();
+  for (const item of items) {
+    revisionsPerRoot.set(
+      item.rootId,
+      (revisionsPerRoot.get(item.rootId) ?? 0) + 1,
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Counters — reflect current versions only; superseded rows are audit history. */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-        <Stat
-          label="Current"
-          value={items.filter((i) => !i.supersededById).length}
-        />
+      {/* Counters — always over current versions. Revisions surface below. */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Stat label="Current" value={rows.length} />
         <Stat label="Auto-routed" value={autoRoutedCount} tone="green" />
         <Stat label="Escalated" value={escalatedCount} tone="purple" />
-        <Stat
-          label="Overridden"
-          value={items.filter((i) => i.overridden && !i.supersededById).length}
-        />
-        <Stat
-          label="Superseded"
-          value={items.filter((i) => i.supersededById).length}
-        />
+        <Stat label="Overridden" value={overriddenCount} />
       </div>
+      <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+        {rows.length} request{rows.length === 1 ? "" : "s"}
+        {revisionCount > 0
+          ? ` · ${revisionCount} superseded revision${revisionCount === 1 ? "" : "s"} in log`
+          : ""}
+      </p>
 
       <div className="overflow-x-auto border border-border bg-card">
         <table className="w-full min-w-[720px] border-collapse text-left">
@@ -1347,18 +1636,16 @@ function QueueView({
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => {
+            {rows.map((item) => {
               const pri = PRIORITY_STYLES[item.finalDecision.priority];
               const status = STATUS_STYLES[item.finalDecision.status];
               const isReviewing = reviewingId === item.id;
               const emb = item.aiRuling.embargo;
-              const isSuperseded = item.supersededById !== undefined;
+              const totalRevisions = revisionsPerRoot.get(item.rootId) ?? 1;
               return (
                 <tr
                   key={item.id}
-                  className={`border-b border-border/60 align-top last:border-b-0 ${
-                    isSuperseded ? "bg-muted/30 text-muted-foreground" : ""
-                  }`}
+                  className="border-b border-border/60 align-top last:border-b-0"
                 >
                   <Td>
                     <div className="flex flex-col gap-0.5">
@@ -1377,27 +1664,19 @@ function QueueView({
                       <div className="flex items-center gap-2">
                         <span
                           className={`inline-flex items-center border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${
-                            isSuperseded
-                              ? "border-border bg-background text-muted-foreground line-through"
-                              : item.revision > 1
-                                ? "border-amber-300 bg-amber-50 text-amber-800"
-                                : "border-border bg-background text-muted-foreground"
+                            item.revision > 1
+                              ? "border-amber-300 bg-amber-50 text-amber-800"
+                              : "border-border bg-background text-muted-foreground"
                           }`}
                           title={
-                            isSuperseded
-                              ? "Superseded by a newer revision"
-                              : item.revision > 1
-                                ? "Revised from an earlier decision"
-                                : undefined
+                            totalRevisions > 1
+                              ? `Revised ${totalRevisions - 1} time${totalRevisions - 1 === 1 ? "" : "s"} — open to view history`
+                              : undefined
                           }
                         >
                           v{item.revision}
                         </span>
-                        <span
-                          className={`line-clamp-2 font-serif text-sm ${
-                            isSuperseded ? "text-muted-foreground" : "text-foreground"
-                          }`}
-                        >
+                        <span className="line-clamp-2 font-serif text-sm text-foreground">
                           {shorten(item.requestText, 90)}
                         </span>
                       </div>
@@ -1495,8 +1774,8 @@ function QueueView({
                     >
                       {isReviewing
                         ? "Open…"
-                        : isSuperseded
-                          ? "View"
+                        : totalRevisions > 1
+                          ? `Open · ${totalRevisions} versions`
                           : "Open"}
                     </button>
                   </Td>
@@ -1509,6 +1788,121 @@ function QueueView({
     </div>
   );
 }
+
+// ---------- Revision Timeline ----------
+
+function RevisionTimeline({
+  revisions,
+  currentId,
+}: {
+  // Newest first. Includes v1 through the latest version.
+  revisions: QueueItem[];
+  currentId: string;
+}) {
+  return (
+    <div className="mt-8 border-t border-border pt-6">
+      <div className="mb-3 flex items-baseline justify-between">
+        <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Revision History
+        </h3>
+        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          {revisions.length} version{revisions.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      <ol className="space-y-3">
+        {revisions.map((r) => {
+          const isCurrent = r.id === currentId;
+          const isV1 = r.revision === 1;
+          const verb = r.guardrailAcknowledged
+            ? "bypassed guardrail"
+            : r.overridden
+              ? isV1
+                ? "overrode AI"
+                : "overrode previous"
+              : isV1
+                ? "accepted"
+                : "re-accepted";
+          return (
+            <li
+              key={r.id}
+              className={`border-l-2 pl-3 ${
+                isCurrent
+                  ? "border-foreground"
+                  : "border-border opacity-80"
+              }`}
+            >
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span
+                  className={`inline-flex items-center border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${
+                    isCurrent
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border bg-background text-muted-foreground"
+                  }`}
+                >
+                  v{r.revision}
+                </span>
+                <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  {formatTime(r.timestamp)}
+                </span>
+                <span className="font-serif text-sm text-foreground">
+                  <span className="font-semibold">
+                    {r.reviewer || "—"}
+                  </span>{" "}
+                  <span className="italic text-muted-foreground">{verb}</span>
+                </span>
+              </div>
+
+              {r.guardrailAcknowledged ? (
+                <div className="mt-1 font-mono text-[10px] uppercase tracking-widest text-red-700">
+                  ⚠ Bypassed safety escalation
+                </div>
+              ) : null}
+
+              <div className="mt-1.5 space-y-0.5 font-serif text-sm text-foreground">
+                {isV1 && r.changes.length === 0 ? (
+                  <div className="text-muted-foreground">
+                    Initial:{" "}
+                    {CATEGORY_LABELS[r.finalDecision.category]} ·{" "}
+                    {PRIORITY_DISPLAY[r.finalDecision.priority]} ·{" "}
+                    {r.finalDecision.route}
+                  </div>
+                ) : r.changes.length === 0 ? (
+                  <div className="italic text-muted-foreground">
+                    No decision fields changed.
+                  </div>
+                ) : (
+                  r.changes.map((c) => (
+                    <div key={c.field}>
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                        {c.field}:
+                      </span>{" "}
+                      <span className="text-muted-foreground line-through">
+                        {c.from}
+                      </span>{" "}
+                      <span className="text-muted-foreground">→</span>{" "}
+                      <span className="font-medium">{c.to}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {r.reason.trim().length > 0 ? (
+                <p className="mt-1.5 font-serif text-sm italic leading-snug text-foreground">
+                  “{r.reason}”
+                </p>
+              ) : !isV1 || r.overridden ? (
+                <p className="mt-1.5 font-serif text-xs italic text-muted-foreground">
+                  (no reason recorded)
+                </p>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 
 function Stat({
   label,
