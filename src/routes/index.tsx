@@ -435,11 +435,12 @@ function Index() {
         status: r.status,
         flags: r.flags,
       };
+      const rowId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : String(now + i);
       items.push({
-        id:
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : String(now + i),
+        id: rowId,
         timestamp: now + i,
         requestText: s.text,
         attachments: [...s.attachments],
@@ -449,6 +450,10 @@ function Index() {
         overridden: false,
         reviewer: reviewer.trim(),
         revision: 1,
+        rootId: rowId,
+        changes: [],
+        reason: "",
+        guardrailAcknowledged: false,
       });
       setBatchProgress({ done: i + 1, total });
     }
