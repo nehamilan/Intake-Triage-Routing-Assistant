@@ -74,4 +74,54 @@ export const SAMPLE_REQUESTS: readonly SampleRequest[] = [
     label: "Restricted access — mentions ethics clearance",
     text: "Following up on our earlier email — I'd like to request access to the restricted survey responses from the 2023 wave. Our project has ethics clearance from the university REC and the approval reference is REC-2023-118.",
   },
+  {
+    id: "deposit-large-collection",
+    label: "Deposit — large multi-file collection",
+    text: "Hello, we'd like to deposit a collection of about 4,000 audio recordings from our oral history project. Could someone from curation help us submit and structure the upload? We're not sure whether to split it into sub-collections.",
+  },
+  {
+    id: "metadata-doi-correction",
+    label: "Metadata — DOI landing page wrong",
+    text: "The DOI landing page for our dataset shows the wrong description and is missing three keywords we submitted. Could you update the metadata record so the DOI resolves to the correct abstract?",
+  },
+  {
+    id: "licensing-commercial-reuse",
+    label: "Licensing — commercial reuse question",
+    text: "A company reached out asking whether they can reuse our dataset commercially. The current license is CC-BY-NC. Can you confirm what commercial reuse requires and whether we can grant an exception without changing the public license?",
+  },
+  {
+    id: "technical-login-loop",
+    label: "Technical — login loop after password reset",
+    text: "After resetting my password I get stuck in a login redirect loop and eventually see a 500 error. Nothing I try lets me sign in. Can infrastructure take a look at my account?",
+  },
+  {
+    id: "preservation-proprietary",
+    label: "Preservation — proprietary format concern",
+    text: "Our simulation outputs are in a proprietary binary format tied to a vendor tool. We want them preserved and readable in 10 years even if the vendor disappears. What format should we convert to and does the repository handle the backup?",
+  },
+  {
+    id: "privacy-incident-linked",
+    label: "Privacy — link shared externally",
+    text: "We just realised the private preview link for our unpublished dataset has been shared on a public mailing list. The file contains personal data about study participants. Can you revoke the link and confirm whether it was accessed?",
+  },
+  {
+    id: "restricted-urgent-no-approval",
+    label: "Restricted access — urgent, no approval",
+    text: "Deadline today — I urgently need access to the restricted patient interview dataset for a grant submission this evening. Please grant access ASAP.",
+  },
+  {
+    id: "general-office-hours",
+    label: "General — office hours question",
+    text: "Quick question — do you run office hours or drop-in sessions for researchers who want help getting started?",
+  },
+  {
+    id: "metadata-orcid",
+    label: "Metadata — ORCID / author linking",
+    text: "Could you help me link ORCID iDs to the author metadata on our recent deposit? Two co-authors are missing from the record and the description needs a short update.",
+  },
+  {
+    id: "technical-api-transfer",
+    label: "Technical — API bulk transfer failing",
+    text: "Our scripted bulk transfer through the API is failing intermittently with a 500 during large downloads. Retries eventually work but it's slowing our pipeline. Can infrastructure investigate the endpoint?",
+  },
 ];
