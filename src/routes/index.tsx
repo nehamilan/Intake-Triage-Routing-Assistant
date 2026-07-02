@@ -1077,9 +1077,23 @@ function QueueView({
                     </span>
                   </Td>
                   <Td>
-                    <span className="line-clamp-2 font-serif text-sm text-foreground">
-                      {shorten(item.requestText, 90)}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className="line-clamp-2 font-serif text-sm text-foreground">
+                        {shorten(item.requestText, 90)}
+                      </span>
+                      {item.attachments.length > 0 ? (
+                        <span
+                          title={item.attachments
+                            .map((a) => a.filename)
+                            .join(", ")}
+                          className="inline-flex w-fit items-center gap-1 border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground"
+                        >
+                          <PaperclipIcon />
+                          {item.attachments.length} file
+                          {item.attachments.length === 1 ? "" : "s"}
+                        </span>
+                      ) : null}
+                    </div>
                   </Td>
                   <Td>
                     <span className="font-serif text-sm text-foreground">
