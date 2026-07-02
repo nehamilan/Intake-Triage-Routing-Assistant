@@ -76,11 +76,33 @@ function Index() {
   // When set, finalizing replaces the existing queue item instead of prepending.
   const [reviewingId, setReviewingId] = useState<string | null>(null);
 
-  const handleTriage = () => {
-    if (requestText.trim().length === 0) return;
-    const d = mockClassify(requestText);
-    setDecision(d);
-    setRuling(applyRules(d, requestText));
+  // Async classifier state.
+  const [isClassifying, setIsClassifying] = useState(false);
+  const [classifyError, setClassifyError] = useState<string | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+
+  const classify = useServerFn(classifyRequest);
+
+  const handleTriage = async () => {
+    const text = requestText.trim();
+    if (text.length === 0 || isClassifying) return;
+    setClassifyError(null);
+    setDecision(null);
+    setRuling(null);
+    setIsClassifying(true);
+    try {
+      const d = await classify({ data: { requestText: text } });
+      setDecision(d);
+      setRuling(applyRules(d, text));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setClassifyError(message);
+    } finally {
+      setIsClassifying(false);
+    }
   };
 
   const buildQueueItem = (
@@ -129,6 +151,7 @@ function Index() {
     setRequestText("");
     setDecision(null);
     setRuling(null);
+    setClassifyError(null);
   };
 
   const handleLoadSample = (text: string) => {
@@ -136,12 +159,36 @@ function Index() {
     setDecision(null);
     setRuling(null);
     setReviewingId(null);
+    setClassifyError(null);
   };
 
-  const handleTriageAll = () => {
+  const handleTriageAll = async () => {
+    if (batchProgress) return;
+    setClassifyError(null);
     const now = Date.now();
-    const items: QueueItem[] = SAMPLE_REQUESTS.map((s, i) => {
-      const d = mockClassify(s.text);
+    const total = SAMPLE_REQUESTS.length;
+    setBatchProgress({ done: 0, total });
+
+    // Classify sequentially so we can show progress and stay well under any
+    // per-second rate limits from the gateway. Failures for a single sample
+    // don't abort the batch — they surface as a low-confidence placeholder
+    // that lands in Human Review through the guardrails.
+    const items: QueueItem[] = [];
+    for (let i = 0; i < SAMPLE_REQUESTS.length; i++) {
+      const s = SAMPLE_REQUESTS[i];
+      let d: Decision;
+      try {
+        d = await classify({ data: { requestText: s.text } });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        d = {
+          category: "general_inquiry",
+          priority: "low",
+          route: RULEBOOK.routes.general_inquiry,
+          reason: `Classifier error — routed to human review. (${message})`,
+          confidence: 0,
+        };
+      }
       const r = applyRules(d, s.text);
       const final: FinalDecision = {
         category: d.category,
@@ -150,22 +197,23 @@ function Index() {
         status: r.status,
         flags: r.flags,
       };
-      return {
+      items.push({
         id:
           typeof crypto !== "undefined" && "randomUUID" in crypto
             ? crypto.randomUUID()
             : String(now + i),
-        // Stagger timestamps so table sort by time reads naturally.
         timestamp: now + i,
         requestText: s.text,
         aiDecision: d,
         aiRuling: r,
         finalDecision: final,
         overridden: false,
-      };
-    });
-    // Newest first, and keep any existing items after the batch.
+      });
+      setBatchProgress({ done: i + 1, total });
+    }
+
     setProcessedQueue((prev) => [...items.reverse(), ...prev]);
+    setBatchProgress(null);
     setActiveTab("queue");
   };
 
