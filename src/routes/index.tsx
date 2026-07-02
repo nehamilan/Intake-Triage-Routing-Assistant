@@ -722,10 +722,12 @@ const STATUS_STYLES: Record<
 function DecisionCard({
   decision,
   ruling,
+  attachments,
   onFinalize,
 }: {
   decision: Decision;
   ruling: RuleResult;
+  attachments: Attachment[];
   onFinalize: (final: FinalDecision, wasOverridden: boolean) => void;
 }) {
   // Editable draft state for Override.
