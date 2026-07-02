@@ -1,45 +1,61 @@
 
-## Confirmed approach
+# Embargo Detection & Exact-Date Guardrail
 
-Based on your answers:
-1. **Step-by-step Tier 1**: I will **wait for your prompts one at a time**. I won't build all of Tier 1 up front. After each of your prompts (1.1 → 1.5), I implement, you test in preview, then you paste the next prompt.
-2. **Design directions first**: On the first Tier 1 prompt that produces visible UI (prompt 1.1 — scaffold + layout), I will generate **3 rendered design directions** and ask you to pick one before writing any UI code. Later prompts (1.2–1.5) extend that same chosen direction, no re-picking.
-3. **`project_specs.md` now**: I will create it as the very first artifact, before any code, per your `instructions.md` Step 1. You approve it before we move on.
+Deposits that mention an embargo often lack a machine-actionable release date. This change extracts an exact `YYYY-MM-DD` when the requester provides one, and escalates every other case (month-only, relative duration, vague) to human review with the raw phrase preserved. Mirrors the attachments pattern: deterministic rules are the source of truth; the LLM stays advisory.
 
-## What happens the moment you approve this plan
+## Behaviour
 
-**Action 1 — write `project_specs.md`** at the repo root, covering:
-- **Inputs**: free-text intake message (paste-in); later, CSV upload for evaluation.
-- **Workflows**: single-item triage → decision card → accept/override → queue. Batch triage of seeded samples. (Tier 2+: real LLM. Tier 3+: persistence, auth, dashboard, evaluation.)
-- **Tools**: Lovable stack — TanStack Start (React 19) on Cloudflare Workers, Tailwind v4, shadcn/ui, bun. Tier 2 adds Lovable Cloud + Lovable AI Gateway (server-side model call, key held as server env). Tier 3 adds Lovable Cloud Postgres + Auth.
-- **Outputs**: structured decision `{ category, priority, route, reason, confidence }` + rules-layer `{ finalRoute, status, flags }` + reviewer's final decision.
-- **Storage**: Tier 1 in-memory only. Tier 3 Postgres `requests` table.
-- **Deployment**: Lovable Publish (Cloudflare Workers). Not GitHub Pages — that section of your instructions doesn't apply to this stack. I will **not** publish without your explicit "publish now" confirmation.
-- **Definition of Done** per tier (Tier 1 DoD copied from the previous plan).
-- **Non-negotiables** carried across all tiers: guardrails + confidence gate live in **deterministic code**, never in the model; safety-critical logic must not be movable into a prompt.
+An embargo is "mentioned" if the text contains any of: `embargo`, `under embargo`, `hold until`, `release on`, `do not publish until`, `keep private until`.
 
-**Action 2 — stop and wait** for you to (a) review `project_specs.md`, and (b) paste **Prompt 1.1**.
+Parsing outcomes:
+- **Exact date found** (`2027-03-01`, `March 1 2027`, `1 March 2027`, `01/03/2027` ISO-only to avoid US/EU ambiguity) → attach `embargo.date`, no escalation from this rule.
+- **Month + year only** ("March 2027") → `date = null`, `reason = "month_only"` → escalate.
+- **Relative duration** ("for 6 months", "for 2 years", "for a while") → `date = null`, `reason = "relative"` → escalate. No anchoring to today.
+- **Embargo word but nothing parseable** → `date = null`, `reason = "vague"` → escalate.
 
-## What I will do when you paste Prompt 1.1
+Ambiguous numeric dates like `03/01/2027` (could be US or EU) are treated as unparseable → escalate.
 
-Prompt 1.1 defines the scaffold: header, subtitle "Decision support — a human reviews every decision", left textarea + Triage button, empty right panel, and the frozen `RULEBOOK` object.
+## Files
 
-Steps in order:
-1. Create `src/lib/rulebook.ts` with the exact rulebook object from prompt 1.1 (verbatim: 7 categories, route map, `confidenceThreshold: 0.7`).
-2. Set real page metadata in `src/routes/__root.tsx` (title "Intake Triage & Routing Assistant", matching description + og/twitter).
-3. **Generate 3 design directions** for the two-panel triage surface (locked to a neutral, professional, regulated-intake aesthetic — calm palette, restrained motion, strong badge/status semantics, generous whitespace). I'll ask you a single "which direction?" question.
-4. **Stop** and wait for your pick.
-5. Once picked, implement the scaffold UI in `src/routes/index.tsx` matching the chosen direction's composition, tokens, and typography exactly. Textarea + Triage button are wired but the button is inert until Prompt 1.2 adds the mock classifier.
+**New: `src/lib/embargo.ts`**
+- `detectEmbargo(text): { mentioned: boolean; date: string | null; rawPhrase: string | null; reason: "exact" | "month_only" | "relative" | "vague" | null }`
+- Keyword scan + regex passes for ISO, "Month D, YYYY", "D Month YYYY".
+- Explicit rejection list for relative patterns (`/for\s+\d+\s+(day|week|month|year)s?/i`, `/for\s+a\s+while/i`).
 
-## Universal rules I will follow across every Tier 1 prompt
+**Edit: `src/lib/apply-rules.ts`**
+- Extend return type with `embargo?: { date: string | null; rawPhrase: string; reason: string }`.
+- New **Guardrail C** (runs after A and B, before the confidence gate):
+  - If `detectEmbargo` returns `mentioned && reason !== "exact"` → force `finalRoute = "Human Review Queue"`, `status = "escalated_missing_embargo_date"`, add flag: *"Embargo mentioned but no exact release date — curator must confirm anchor and set YYYY-MM-DD."*
+  - If `mentioned && reason === "exact"` → attach `embargo` to result, no override.
+- Guardrails A and B still win over C (privacy incident and access-without-approval remain highest priority).
 
-- Strict TypeScript, no `any`, explicit interfaces for `Decision`, `RulesOutcome`, `QueueItem`, `Rulebook`.
-- Rulebook lives as **data**, not code — never inline categories/routes into components.
-- Guardrails and confidence gate live in `src/lib/apply-rules.ts` as pure functions with unit-testable signatures. Same file survives untouched into Tier 2.
-- Zero API calls, zero secrets, zero persistence in Tier 1.
-- After each prompt I'll verify the specific behavior it added (targeted preview check) before telling you it's done.
-- No publish without explicit confirmation.
+**Edit: `src/lib/classify-request.functions.ts`**
+- Add `embargo` to the JSON schema the LLM returns (`{ mentioned, date, rawPhrase }`), and instruct: *"Only return `date` if the requester wrote an exact calendar date. Never compute a date from a duration."*
+- LLM output stays advisory; `apply-rules` overwrites `embargo` with the deterministic extractor's result before persisting.
 
-## Explicit scope for this approval
+**Edit: `src/routes/index.tsx`**
+- **Decision Card**: new "Embargo" row with a calendar glyph.
+  - Exact date → mono `2027-03-01` + small "release date" caption.
+  - Missing/vague → amber pill "Date missing" + the raw phrase in quotes.
+  - Not mentioned → row hidden.
+- **Queue table**: new compact embargo badge column (calendar icon + date, or amber dot if missing). Hidden when no row in the queue has an embargo.
 
-Approving this plan means: **I write `project_specs.md`, then stop and wait for your Prompt 1.1.** No UI code, no design directions, no rulebook file yet — those wait for Prompt 1.1.
+**Edit: `src/lib/sample-requests.ts`**
+- Add three deposits to exercise all paths:
+  1. Exact: *"Please deposit the attached dataset and embargo until 2027-06-30."*
+  2. Month-only: *"Deposit this collection, embargo until March 2027."*
+  3. Relative/vague: *"Upload these files but please embargo for 6 months."*
+
+## Out of scope
+
+- Persisting embargo dates to a backend (still in-memory queue).
+- Automatic release/reminder scheduling.
+- Timezone handling — dates stored as plain `YYYY-MM-DD`.
+- Auto-anchoring relative durations to today.
+
+## Verification
+
+After build, load samples, Triage All, and confirm:
+- Sample 1 → auto-routed to Curation, Decision Card shows `2027-06-30`.
+- Samples 2 and 3 → escalated to Human Review Queue with the "Date missing" flag and raw phrase visible.
+- Existing privacy-incident and access-without-approval samples still escalate under Guardrails A/B (C does not override them).

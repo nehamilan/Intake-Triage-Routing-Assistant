@@ -715,6 +715,10 @@ const STATUS_STYLES: Record<
     badge: "bg-purple-50 border-purple-300 text-purple-800",
     dot: "bg-purple-600",
   },
+  escalated_missing_embargo_date: {
+    badge: "bg-purple-50 border-purple-300 text-purple-800",
+    dot: "bg-purple-600",
+  },
 };
 
 // ---------- Decision Card ----------
@@ -822,6 +826,9 @@ function DecisionCard({
           </p>
         </div>
       ) : null}
+
+      {ruling.embargo.mentioned ? <EmbargoRow embargo={ruling.embargo} /> : null}
+
 
 
 
@@ -1050,6 +1057,8 @@ function QueueView({
     );
   }
 
+  const anyEmbargo = items.some((i) => i.aiRuling.embargo.mentioned);
+
   return (
     <div className="space-y-6">
       {/* Counters */}
@@ -1072,6 +1081,7 @@ function QueueView({
               <Th>Category</Th>
               <Th>Priority</Th>
               <Th>Route</Th>
+              {anyEmbargo ? <Th>Embargo</Th> : null}
               <Th>Status</Th>
               <Th>Override</Th>
               <Th>Action</Th>
@@ -1082,6 +1092,7 @@ function QueueView({
               const pri = PRIORITY_STYLES[item.finalDecision.priority];
               const status = STATUS_STYLES[item.finalDecision.status];
               const isReviewing = reviewingId === item.id;
+              const emb = item.aiRuling.embargo;
               return (
                 <tr
                   key={item.id}
@@ -1129,6 +1140,33 @@ function QueueView({
                       {item.finalDecision.route}
                     </span>
                   </Td>
+                  {anyEmbargo ? (
+                    <Td>
+                      {emb.mentioned ? (
+                        emb.reason === "exact" && emb.date ? (
+                          <span
+                            title={`Parsed from: ${emb.rawPhrase}`}
+                            className="inline-flex items-center gap-1.5 border border-green-300 bg-green-50 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-green-800"
+                          >
+                            <CalendarIcon />
+                            {emb.date}
+                          </span>
+                        ) : (
+                          <span
+                            title={`Requester wrote: ${emb.rawPhrase ?? "embargo"}`}
+                            className="inline-flex items-center gap-1.5 border border-amber-300 bg-amber-50 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-amber-800"
+                          >
+                            <CalendarIcon />
+                            Date missing
+                          </span>
+                        )
+                      ) : (
+                        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                          —
+                        </span>
+                      )}
+                    </Td>
+                  ) : null}
                   <Td>
                     <span
                       className={`inline-flex items-center gap-1.5 border px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${status.badge}`}
@@ -1284,7 +1322,65 @@ function DecisionSkeleton() {
 }
 
 
+// ---------- Embargo UI ----------
+
+function CalendarIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-3 w-3"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  );
+}
+
+function EmbargoRow({ embargo }: { embargo: import("@/lib/embargo").EmbargoDetection }) {
+  const hasDate = embargo.reason === "exact" && embargo.date;
+  return (
+    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-4">
+      <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        Embargo
+      </span>
+      <div className="flex flex-col gap-1 border-b border-border pb-2">
+        {hasDate ? (
+          <>
+            <span className="inline-flex w-fit items-center gap-2 border border-green-300 bg-green-50 px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-widest text-green-800">
+              <CalendarIcon />
+              {embargo.date}
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              Release date parsed from: “{embargo.rawPhrase}”
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="inline-flex w-fit items-center gap-2 border border-amber-300 bg-amber-50 px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-widest text-amber-800">
+              <CalendarIcon />
+              Date missing
+            </span>
+            <span className="font-serif text-xs italic text-muted-foreground">
+              Requester wrote: “{embargo.rawPhrase ?? "embargo"}” — curator must
+              confirm an exact YYYY-MM-DD before release.
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ---------- Attachments UI ----------
+
+
 
 function PaperclipIcon() {
   return (

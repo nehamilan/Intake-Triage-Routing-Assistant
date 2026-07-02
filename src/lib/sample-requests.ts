@@ -371,4 +371,37 @@ export const SAMPLE_REQUESTS: readonly SampleRequest[] = [
     text: "Hi curation team, as discussed please find attached the completed deposit form and the dataset manifest so you can begin the ingest for our Q4 release. Let me know if you need anything else.",
     attachments: [],
   },
+  // Embargo guardrail cases (Guardrail C).
+  {
+    id: "deposit-embargo-exact-date",
+    label: "Deposit — embargo with exact date",
+    text: "Please deposit the attached thesis dataset for our lab and embargo it until 2027-06-30. The paper is scheduled to appear that week and the DOI can go public then.",
+    attachments: [
+      mockFile(
+        "thesis_dataset_manifest.csv",
+        "text/csv",
+        18_400,
+        "Manifest of files intended for the embargoed deposit.",
+      ),
+    ],
+  },
+  {
+    id: "deposit-embargo-month-only",
+    label: "Deposit — embargo, month only",
+    text: "We'd like to submit our collection now but keep it under embargo until March 2027, when the associated publication is expected. Please advise on the deposit steps.",
+    attachments: [],
+  },
+  {
+    id: "deposit-embargo-relative",
+    label: "Deposit — embargo, relative duration",
+    text: "Please upload the attached dataset but embargo it for 6 months from deposit. We'd rather not commit to a specific calendar date yet.",
+    attachments: [
+      mockFile(
+        "dataset_bundle_index.csv",
+        "text/csv",
+        24_800,
+        "Index of files bundled for the embargoed deposit.",
+      ),
+    ],
+  },
 ];

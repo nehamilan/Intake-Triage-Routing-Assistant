@@ -88,6 +88,10 @@ function buildSystemPrompt(rb: Rulebook): string {
     "     `irb_approval.pdf` alongside an access request is meaningful context, and",
     "     an `error_screenshot.png` supports a technical_platform classification.",
     "     You have NOT seen the file bytes; do not claim to have read them.",
+    "  7. If the requester asks for an embargo, note it in `reason` in plain",
+    "     English. Do NOT compute or infer a release date from a duration such as",
+    "     \"6 months\" — only a human curator sets that. Embargo handling is",
+    "     enforced deterministically downstream from this classifier.",
   ].join("\n");
 }
 
