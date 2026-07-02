@@ -424,6 +424,16 @@ function Index() {
                   </div>
                 </div>
 
+                <AttachmentsEditor
+                  attachments={attachments}
+                  fileInputRef={fileInputRef}
+                  onAdd={handleAddFiles}
+                  onRemove={handleRemoveAttachment}
+                  disabled={isClassifying || batchProgress !== null}
+                />
+
+
+
                 <button
                   type="button"
                   onClick={handleTriage}
