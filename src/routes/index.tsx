@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import {
   RULEBOOK,
@@ -6,7 +7,7 @@ import {
   type Category,
   type Priority,
 } from "@/lib/rulebook";
-import { mockClassify, type Decision } from "@/lib/mock-classify";
+import { type Decision } from "@/lib/mock-classify";
 import {
   applyRules,
   STATUS_LABELS,
@@ -14,6 +15,7 @@ import {
   type TriageStatus,
 } from "@/lib/apply-rules";
 import { SAMPLE_REQUESTS } from "@/lib/sample-requests";
+import { classifyRequest } from "@/lib/classify-request.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -74,11 +76,33 @@ function Index() {
   // When set, finalizing replaces the existing queue item instead of prepending.
   const [reviewingId, setReviewingId] = useState<string | null>(null);
 
-  const handleTriage = () => {
-    if (requestText.trim().length === 0) return;
-    const d = mockClassify(requestText);
-    setDecision(d);
-    setRuling(applyRules(d, requestText));
+  // Async classifier state.
+  const [isClassifying, setIsClassifying] = useState(false);
+  const [classifyError, setClassifyError] = useState<string | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+
+  const classify = useServerFn(classifyRequest);
+
+  const handleTriage = async () => {
+    const text = requestText.trim();
+    if (text.length === 0 || isClassifying) return;
+    setClassifyError(null);
+    setDecision(null);
+    setRuling(null);
+    setIsClassifying(true);
+    try {
+      const d = await classify({ data: { requestText: text } });
+      setDecision(d);
+      setRuling(applyRules(d, text));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setClassifyError(message);
+    } finally {
+      setIsClassifying(false);
+    }
   };
 
   const buildQueueItem = (
@@ -127,6 +151,7 @@ function Index() {
     setRequestText("");
     setDecision(null);
     setRuling(null);
+    setClassifyError(null);
   };
 
   const handleLoadSample = (text: string) => {
@@ -134,12 +159,36 @@ function Index() {
     setDecision(null);
     setRuling(null);
     setReviewingId(null);
+    setClassifyError(null);
   };
 
-  const handleTriageAll = () => {
+  const handleTriageAll = async () => {
+    if (batchProgress) return;
+    setClassifyError(null);
     const now = Date.now();
-    const items: QueueItem[] = SAMPLE_REQUESTS.map((s, i) => {
-      const d = mockClassify(s.text);
+    const total = SAMPLE_REQUESTS.length;
+    setBatchProgress({ done: 0, total });
+
+    // Classify sequentially so we can show progress and stay well under any
+    // per-second rate limits from the gateway. Failures for a single sample
+    // don't abort the batch — they surface as a low-confidence placeholder
+    // that lands in Human Review through the guardrails.
+    const items: QueueItem[] = [];
+    for (let i = 0; i < SAMPLE_REQUESTS.length; i++) {
+      const s = SAMPLE_REQUESTS[i];
+      let d: Decision;
+      try {
+        d = await classify({ data: { requestText: s.text } });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        d = {
+          category: "general_inquiry",
+          priority: "low",
+          route: RULEBOOK.routes.general_inquiry,
+          reason: `Classifier error — routed to human review. (${message})`,
+          confidence: 0,
+        };
+      }
       const r = applyRules(d, s.text);
       const final: FinalDecision = {
         category: d.category,
@@ -148,22 +197,23 @@ function Index() {
         status: r.status,
         flags: r.flags,
       };
-      return {
+      items.push({
         id:
           typeof crypto !== "undefined" && "randomUUID" in crypto
             ? crypto.randomUUID()
             : String(now + i),
-        // Stagger timestamps so table sort by time reads naturally.
         timestamp: now + i,
         requestText: s.text,
         aiDecision: d,
         aiRuling: r,
         finalDecision: final,
         overridden: false,
-      };
-    });
-    // Newest first, and keep any existing items after the batch.
+      });
+      setBatchProgress({ done: i + 1, total });
+    }
+
     setProcessedQueue((prev) => [...items.reverse(), ...prev]);
+    setBatchProgress(null);
     setActiveTab("queue");
   };
 
@@ -274,11 +324,35 @@ function Index() {
                 <button
                   type="button"
                   onClick={handleTriage}
-                  disabled={requestText.trim().length === 0}
-                  className="w-full bg-primary py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground shadow-sm transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={
+                    requestText.trim().length === 0 ||
+                    isClassifying ||
+                    batchProgress !== null
+                  }
+                  className="inline-flex w-full items-center justify-center gap-2 bg-primary py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground shadow-sm transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Triage Request
+                  {isClassifying ? (
+                    <>
+                      <Spinner /> Classifying…
+                    </>
+                  ) : (
+                    "Triage Request"
+                  )}
                 </button>
+
+                {classifyError ? (
+                  <div
+                    role="alert"
+                    className="border-l-4 border-red-600 bg-red-50/70 p-3 font-mono text-[11px] text-red-800"
+                  >
+                    <div className="mb-0.5 font-bold uppercase tracking-widest">
+                      Classifier error
+                    </div>
+                    <div className="font-serif text-sm italic leading-snug">
+                      {classifyError}
+                    </div>
+                  </div>
+                ) : null}
 
                 {/* Sample batch controls */}
                 <div className="border-t border-dashed border-border pt-5">
@@ -299,13 +373,14 @@ function Index() {
                     <select
                       aria-label="Load a sample request"
                       value=""
+                      disabled={isClassifying || batchProgress !== null}
                       onChange={(e) => {
                         const s = SAMPLE_REQUESTS.find(
                           (x) => x.id === e.target.value,
                         );
                         if (s) handleLoadSample(s.text);
                       }}
-                      className="flex-1 border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
+                      className="flex-1 border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none disabled:opacity-50"
                     >
                       <option value="" disabled>
                         Load sample request…
@@ -319,9 +394,16 @@ function Index() {
                     <button
                       type="button"
                       onClick={handleTriageAll}
-                      className="border border-foreground bg-background px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
+                      disabled={isClassifying || batchProgress !== null}
+                      className="inline-flex items-center justify-center gap-2 border border-foreground bg-background px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Triage all
+                      {batchProgress ? (
+                        <>
+                          <Spinner /> {batchProgress.done}/{batchProgress.total}
+                        </>
+                      ) : (
+                        "Triage all"
+                      )}
                     </button>
                   </div>
                 </div>
@@ -341,13 +423,17 @@ function Index() {
                     Triage Result
                   </h2>
                   <p className="mt-1 font-serif text-sm italic text-muted-foreground">
-                    {decision
-                      ? "Proposed decision — pending human review."
-                      : "No request triaged yet."}
+                    {isClassifying
+                      ? "Consulting the classifier…"
+                      : decision
+                        ? "Proposed decision — pending human review."
+                        : "No request triaged yet."}
                   </p>
                 </div>
 
-                {decision && ruling ? (
+                {isClassifying ? (
+                  <DecisionSkeleton />
+                ) : decision && ruling ? (
                   <DecisionCard
                     key={requestText.slice(0, 24) + processedQueue.length}
                     decision={decision}
@@ -988,3 +1074,62 @@ function formatTime(ts: number): string {
   const ss = String(d.getSeconds()).padStart(2, "0");
   return `${hh}:${mm}:${ss}`;
 }
+
+function Spinner() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-3.5 w-3.5 animate-spin"
+      fill="none"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        stroke="currentColor"
+        strokeWidth="3"
+        opacity="0.25"
+      />
+      <path
+        d="M21 12a9 9 0 0 0-9-9"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function DecisionSkeleton() {
+  return (
+    <div
+      className="flex flex-1 flex-col gap-6"
+      role="status"
+      aria-label="Classifying request"
+    >
+      <div className="flex items-center gap-3">
+        <div className="h-6 w-40 animate-pulse bg-foreground/10" />
+        <div className="h-6 w-20 animate-pulse bg-foreground/10" />
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-24 animate-pulse bg-foreground/10" />
+        <div className="h-4 w-full animate-pulse bg-foreground/10" />
+        <div className="h-4 w-5/6 animate-pulse bg-foreground/10" />
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-28 animate-pulse bg-foreground/10" />
+        <div className="h-2 w-full animate-pulse bg-foreground/10" />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="h-16 animate-pulse bg-foreground/10" />
+        <div className="h-16 animate-pulse bg-foreground/10" />
+      </div>
+      <div className="mt-auto flex gap-3">
+        <div className="h-10 flex-1 animate-pulse bg-foreground/10" />
+        <div className="h-10 w-32 animate-pulse bg-foreground/10" />
+      </div>
+    </div>
+  );
+}
+
