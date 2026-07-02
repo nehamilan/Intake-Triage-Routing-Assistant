@@ -827,6 +827,9 @@ function DecisionCard({
         </div>
       ) : null}
 
+      {ruling.embargo.mentioned ? <EmbargoRow embargo={ruling.embargo} /> : null}
+
+
 
 
       <div className="grid grid-cols-[110px_minmax(0,1fr)] items-baseline gap-4">
