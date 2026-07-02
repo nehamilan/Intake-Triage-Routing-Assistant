@@ -847,14 +847,31 @@ function DecisionCard({
   ruling,
   attachments,
   onFinalize,
+  mode,
+  reviewer,
+  onReviewerChange,
+  finalizedReviewer,
+  finalizedAt,
+  onReopen,
+  onCancelRevision,
 }: {
   decision: Decision;
   ruling: RuleResult;
   attachments: Attachment[];
   onFinalize: (final: FinalDecision, wasOverridden: boolean) => void;
+  mode: "draft" | "finalized" | "revising" | "superseded";
+  reviewer: string;
+  onReviewerChange: (v: string) => void;
+  finalizedReviewer?: string;
+  finalizedAt?: number;
+  onReopen: () => void;
+  onCancelRevision: () => void;
 }) {
-  // Editable draft state for Override.
-  const [editing, setEditing] = useState(false);
+  const isEditable = mode === "draft" || mode === "revising";
+  // Editable draft state for Override. In "revising" mode, we open the form
+  // pre-populated with the finalized values so reviewers see what they're
+  // changing from.
+  const [editing, setEditing] = useState(mode === "revising");
   const [draftCategory, setDraftCategory] = useState<Category>(decision.category);
   const [draftPriority, setDraftPriority] = useState<Priority>(ruling.priority);
   const [draftRoute, setDraftRoute] = useState<string>(ruling.finalRoute);
@@ -864,8 +881,10 @@ function DecisionCard({
   const belowThreshold = decision.confidence < RULEBOOK.confidenceThreshold;
   const statusStyle = STATUS_STYLES[ruling.status];
   const routeOverridden = ruling.finalRoute !== decision.route;
+  const reviewerReady = reviewer.trim().length > 0;
 
   const acceptAsIs = () => {
+    if (!reviewerReady) return;
     onFinalize(
       {
         category: decision.category,
@@ -879,6 +898,7 @@ function DecisionCard({
   };
 
   const saveOverride = () => {
+    if (!reviewerReady) return;
     const changed =
       draftCategory !== decision.category ||
       draftPriority !== ruling.priority ||
