@@ -64,6 +64,13 @@ interface QueueItem {
   aiRuling: RuleResult;
   finalDecision: FinalDecision;
   overridden: boolean;
+  // Immutable audit log — a revision appends a new row and marks the
+  // predecessor as superseded via these pointers. Existing rows are never
+  // otherwise mutated after they land in the queue.
+  reviewer: string;
+  revision: number;
+  supersedesId?: string;
+  supersededById?: string;
 }
 
 // All routes selectable in the Override control.
