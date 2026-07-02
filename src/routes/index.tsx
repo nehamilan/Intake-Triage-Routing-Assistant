@@ -524,7 +524,11 @@ function Index() {
                   fileInputRef={fileInputRef}
                   onAdd={handleAddFiles}
                   onRemove={handleRemoveAttachment}
-                  disabled={isClassifying || batchProgress !== null}
+                  disabled={
+                    isClassifying ||
+                    batchProgress !== null ||
+                    reviewingItem !== null
+                  }
                 />
 
 
