@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { RULEBOOK } from "@/lib/rulebook";
+import { RULEBOOK, CATEGORY_LABELS, type Priority } from "@/lib/rulebook";
+import { mockClassify, type Decision } from "@/lib/mock-classify";
 
 export const Route = createFileRoute("/")({
   head: () => ({
