@@ -916,6 +916,19 @@ function QueueView({
                       </span>
                     )}
                   </Td>
+                  <Td>
+                    <button
+                      type="button"
+                      onClick={() => onReview(item)}
+                      className={
+                        isReviewing
+                          ? "border border-purple-400 bg-purple-100 px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800"
+                          : "border border-foreground bg-background px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground transition-colors hover:bg-foreground/5"
+                      }
+                    >
+                      {isReviewing ? "Reviewing…" : "Review"}
+                    </button>
+                  </Td>
                 </tr>
               );
             })}
