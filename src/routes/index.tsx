@@ -64,6 +64,13 @@ interface QueueItem {
   aiRuling: RuleResult;
   finalDecision: FinalDecision;
   overridden: boolean;
+  // Immutable audit log — a revision appends a new row and marks the
+  // predecessor as superseded via these pointers. Existing rows are never
+  // otherwise mutated after they land in the queue.
+  reviewer: string;
+  revision: number;
+  supersedesId?: string;
+  supersededById?: string;
 }
 
 // All routes selectable in the Override control.
@@ -81,8 +88,13 @@ function Index() {
   const [decision, setDecision] = useState<Decision | null>(null);
   const [ruling, setRuling] = useState<RuleResult | null>(null);
   const [processedQueue, setProcessedQueue] = useState<QueueItem[]>([]);
-  // When set, finalizing replaces the existing queue item instead of prepending.
+  // Free-form reviewer name, session-scoped. Captured on every finalize/revise.
+  const [reviewer, setReviewer] = useState("");
+  // When set, the workspace is bound to an existing queue item (finalized view).
+  // `isRevising` flips true when the user clicks "Reopen for revision" and
+  // unlocks the override controls; saving then appends a new revision row.
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [isRevising, setIsRevising] = useState(false);
 
   // Async classifier state.
   const [isClassifying, setIsClassifying] = useState(false);
@@ -146,6 +158,11 @@ function Index() {
     }
   };
 
+  const newId = () =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : String(Date.now() + Math.random());
+
   const buildQueueItem = (
     text: string,
     atts: Attachment[],
@@ -153,11 +170,14 @@ function Index() {
     d: Decision,
     r: RuleResult,
     wasOverridden: boolean,
+    opts: {
+      reviewer: string;
+      revision: number;
+      supersedesId?: string;
+      id?: string;
+    },
   ): QueueItem => ({
-    id:
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : String(Date.now() + Math.random()),
+    id: opts.id ?? newId(),
     timestamp: Date.now(),
     requestText: text,
     attachments: atts,
@@ -165,25 +185,41 @@ function Index() {
     aiRuling: r,
     finalDecision: final,
     overridden: wasOverridden,
+    reviewer: opts.reviewer,
+    revision: opts.revision,
+    supersedesId: opts.supersedesId,
   });
 
   const handleFinalize = (final: FinalDecision, wasOverridden: boolean) => {
     if (!decision || !ruling) return;
-    if (reviewingId) {
-      setProcessedQueue((prev) =>
-        prev.map((q) =>
-          q.id === reviewingId
-            ? {
-                ...q,
-                timestamp: Date.now(),
-                attachments,
-                finalDecision: final,
-                overridden: wasOverridden || q.overridden,
-              }
-            : q,
-        ),
+    const reviewerName = reviewer.trim();
+    if (reviewingId && isRevising) {
+      // Append a new revision row and mark the predecessor as superseded.
+      // The pointer update on the previous row is the ONLY mutation to an
+      // existing queue entry — decisions themselves stay immutable.
+      const prev = processedQueue.find((q) => q.id === reviewingId);
+      if (!prev) return;
+      const newRow = buildQueueItem(
+        prev.requestText,
+        prev.attachments,
+        final,
+        decision,
+        ruling,
+        wasOverridden || prev.overridden,
+        {
+          reviewer: reviewerName,
+          revision: prev.revision + 1,
+          supersedesId: prev.id,
+        },
       );
+      setProcessedQueue((queue) => [
+        newRow,
+        ...queue.map((q) =>
+          q.id === prev.id ? { ...q, supersededById: newRow.id } : q,
+        ),
+      ]);
       setReviewingId(null);
+      setIsRevising(false);
       setActiveTab("queue");
     } else {
       setProcessedQueue((prev) => [
@@ -194,6 +230,7 @@ function Index() {
           decision,
           ruling,
           wasOverridden,
+          { reviewer: reviewerName, revision: 1 },
         ),
         ...prev,
       ]);
@@ -207,6 +244,7 @@ function Index() {
     setRuling(null);
     setClassifyError(null);
   };
+
 
   const handleLoadSample = (text: string, atts: Attachment[]) => {
     setRequestText(text);
@@ -308,6 +346,8 @@ function Index() {
         aiRuling: r,
         finalDecision: final,
         overridden: false,
+        reviewer: reviewer.trim(),
+        revision: 1,
       });
       setBatchProgress({ done: i + 1, total });
     }
@@ -318,27 +358,57 @@ function Index() {
   };
 
   const handleReview = (item: QueueItem) => {
+    // Reconstruct decision + ruling so the card reflects the FINAL committed
+    // values, not the raw AI proposal (which may have been overridden).
+    const finalRuling: RuleResult = {
+      ...item.aiRuling,
+      priority: item.finalDecision.priority,
+      finalRoute: item.finalDecision.route,
+      status: item.finalDecision.status,
+      flags: item.finalDecision.flags,
+    };
+    const finalDecision: Decision = {
+      ...item.aiDecision,
+      category: item.finalDecision.category,
+    };
     setRequestText(item.requestText);
     setAttachments(item.attachments);
-    setDecision(item.aiDecision);
-    setRuling(item.aiRuling);
+    setDecision(finalDecision);
+    setRuling(finalRuling);
     setReviewingId(item.id);
+    setIsRevising(false);
     setActiveTab("triage");
   };
 
   const cancelReview = () => {
     setReviewingId(null);
+    setIsRevising(false);
     setRequestText("");
     setAttachments([]);
     setDecision(null);
     setRuling(null);
   };
 
+  const startRevision = () => {
+    if (!reviewingId) return;
+    setIsRevising(true);
+  };
 
-  const escalatedCount = processedQueue.filter(
+
+  // Counters reflect current versions only — superseded revisions stay in the
+  // log but shouldn't inflate the escalated / auto-routed totals.
+  const currentQueue = processedQueue.filter((q) => !q.supersededById);
+  const supersededCount = processedQueue.length - currentQueue.length;
+  const escalatedCount = currentQueue.filter(
     (q) => q.finalDecision.status !== "auto_routed",
   ).length;
-  const autoRoutedCount = processedQueue.length - escalatedCount;
+  const autoRoutedCount = currentQueue.length - escalatedCount;
+
+  const reviewingItem = reviewingId
+    ? processedQueue.find((q) => q.id === reviewingId) ?? null
+    : null;
+  const isSupersededView =
+    reviewingItem !== null && reviewingItem.supersededById !== undefined;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -381,22 +451,46 @@ function Index() {
             <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2 lg:gap-12">
               {/* Input */}
               <section aria-labelledby="request-label" className="space-y-6">
-                {reviewingId ? (
-                  <div className="flex items-start justify-between gap-3 border border-purple-300 bg-purple-50/60 px-4 py-3">
+                {reviewingItem ? (
+                  <div
+                    className={
+                      isSupersededView
+                        ? "flex items-start justify-between gap-3 border border-border bg-muted/40 px-4 py-3"
+                        : isRevising
+                          ? "flex items-start justify-between gap-3 border border-amber-300 bg-amber-50/70 px-4 py-3"
+                          : "flex items-start justify-between gap-3 border border-purple-300 bg-purple-50/60 px-4 py-3"
+                    }
+                  >
                     <div>
-                      <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800">
-                        Reviewing queued item
+                      <div
+                        className={
+                          isSupersededView
+                            ? "font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
+                            : isRevising
+                              ? "font-mono text-[10px] font-bold uppercase tracking-widest text-amber-800"
+                              : "font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800"
+                        }
+                      >
+                        {isSupersededView
+                          ? `Viewing v${reviewingItem.revision} · superseded`
+                          : isRevising
+                            ? `Revising v${reviewingItem.revision} → will save as v${reviewingItem.revision + 1}`
+                            : `Finalized · v${reviewingItem.revision}`}
                       </div>
-                      <div className="mt-0.5 font-serif text-sm italic text-purple-900">
-                        Accept or override to update the queue entry.
+                      <div className="mt-0.5 font-serif text-sm italic text-foreground">
+                        {isSupersededView
+                          ? `Read-only. A newer revision exists — open it to revise.`
+                          : isRevising
+                            ? `Adjust category, priority, or route, then save as a new revision.`
+                            : `Accepted by ${reviewingItem.reviewer || "—"} · ${formatTime(reviewingItem.timestamp)}. Read-only unless you reopen.`}
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={cancelReview}
-                      className="border border-purple-300 bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800 hover:bg-purple-100"
+                      className="border border-border bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
                     >
-                      Cancel
+                      Close
                     </button>
                   </div>
                 ) : null}
@@ -415,8 +509,9 @@ function Index() {
                       value={requestText}
                       onChange={(e) => setRequestText(e.target.value)}
                       rows={12}
+                      readOnly={reviewingItem !== null}
                       placeholder="Paste an incoming request here — an email about accessing a restricted dataset, a deposit question, a licensing query, or a broken download link."
-                      className="h-64 w-full resize-none border border-border bg-card p-4 text-sm leading-relaxed text-foreground shadow-none outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-foreground focus:ring-0"
+                      className={`h-64 w-full resize-none border border-border bg-card p-4 text-sm leading-relaxed text-foreground shadow-none outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-foreground focus:ring-0 ${reviewingItem ? "cursor-not-allowed opacity-80" : ""}`}
                     />
                     <div className="pointer-events-none absolute bottom-3 right-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                       CHAR: {requestText.length}
@@ -429,29 +524,35 @@ function Index() {
                   fileInputRef={fileInputRef}
                   onAdd={handleAddFiles}
                   onRemove={handleRemoveAttachment}
-                  disabled={isClassifying || batchProgress !== null}
+                  disabled={
+                    isClassifying ||
+                    batchProgress !== null ||
+                    reviewingItem !== null
+                  }
                 />
 
 
 
-                <button
-                  type="button"
-                  onClick={handleTriage}
-                  disabled={
-                    requestText.trim().length === 0 ||
-                    isClassifying ||
-                    batchProgress !== null
-                  }
-                  className="inline-flex w-full items-center justify-center gap-2 bg-primary py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground shadow-sm transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {isClassifying ? (
-                    <>
-                      <Spinner /> Classifying…
-                    </>
-                  ) : (
-                    "Triage Request"
-                  )}
-                </button>
+                {reviewingItem ? null : (
+                  <button
+                    type="button"
+                    onClick={handleTriage}
+                    disabled={
+                      requestText.trim().length === 0 ||
+                      isClassifying ||
+                      batchProgress !== null
+                    }
+                    className="inline-flex w-full items-center justify-center gap-2 bg-primary py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground shadow-sm transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isClassifying ? (
+                      <>
+                        <Spinner /> Classifying…
+                      </>
+                    ) : (
+                      "Triage Request"
+                    )}
+                  </button>
+                )}
 
                 {classifyError ? (
                   <div
@@ -468,58 +569,61 @@ function Index() {
                 ) : null}
 
                 {/* Sample batch controls */}
-                <div className="border-t border-dashed border-border pt-5">
-                  <div className="mb-3 flex items-baseline justify-between gap-3">
-                    <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                      Sample Corpus
-                    </span>
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                      {SAMPLE_REQUESTS.length} fixtures
-                    </span>
-                  </div>
-                  <p className="mb-3 font-serif text-xs italic text-muted-foreground">
-                    Hard-coded intake messages covering every category and each
-                    guardrail case. Load one into the editor, or triage the
-                    whole set at once and inspect the queue.
-                  </p>
-                  <div className="mb-4 flex flex-col gap-2 sm:flex-row">
-                    <select
-                      aria-label="Load a sample request"
-                      value=""
-                      disabled={isClassifying || batchProgress !== null}
-                      onChange={(e) => {
-                        const s = SAMPLE_REQUESTS.find(
-                          (x) => x.id === e.target.value,
-                        );
-                        if (s) handleLoadSample(s.text, [...s.attachments]);
-                      }}
-                      className="flex-1 border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none disabled:opacity-50"
-                    >
-                      <option value="" disabled>
-                        Load sample request…
-                      </option>
-                      {SAMPLE_REQUESTS.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.label}
+                {reviewingItem ? null : (
+                  <div className="border-t border-dashed border-border pt-5">
+                    <div className="mb-3 flex items-baseline justify-between gap-3">
+                      <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        Sample Corpus
+                      </span>
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                        {SAMPLE_REQUESTS.length} fixtures
+                      </span>
+                    </div>
+                    <p className="mb-3 font-serif text-xs italic text-muted-foreground">
+                      Hard-coded intake messages covering every category and
+                      each guardrail case. Load one into the editor, or triage
+                      the whole set at once and inspect the queue.
+                    </p>
+                    <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+                      <select
+                        aria-label="Load a sample request"
+                        value=""
+                        disabled={isClassifying || batchProgress !== null}
+                        onChange={(e) => {
+                          const s = SAMPLE_REQUESTS.find(
+                            (x) => x.id === e.target.value,
+                          );
+                          if (s) handleLoadSample(s.text, [...s.attachments]);
+                        }}
+                        className="flex-1 border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none disabled:opacity-50"
+                      >
+                        <option value="" disabled>
+                          Load sample request…
                         </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={handleTriageAll}
-                      disabled={isClassifying || batchProgress !== null}
-                      className="inline-flex items-center justify-center gap-2 border border-foreground bg-background px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {batchProgress ? (
-                        <>
-                          <Spinner /> {batchProgress.done}/{batchProgress.total}
-                        </>
-                      ) : (
-                        "Triage all"
-                      )}
-                    </button>
+                        {SAMPLE_REQUESTS.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleTriageAll}
+                        disabled={isClassifying || batchProgress !== null}
+                        className="inline-flex items-center justify-center gap-2 border border-foreground bg-background px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {batchProgress ? (
+                          <>
+                            <Spinner /> {batchProgress.done}/
+                            {batchProgress.total}
+                          </>
+                        ) : (
+                          "Triage all"
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </section>
 
               {/* Decision card */}
@@ -539,7 +643,13 @@ function Index() {
                     {isClassifying
                       ? "Consulting the classifier…"
                       : decision
-                        ? "Proposed decision — pending human review."
+                        ? reviewingItem
+                          ? isSupersededView
+                            ? `Superseded revision · v${reviewingItem.revision}.`
+                            : isRevising
+                              ? `Revising v${reviewingItem.revision} — saving will append v${reviewingItem.revision + 1}.`
+                              : `Finalized decision · v${reviewingItem.revision}.`
+                          : "Proposed decision — pending human review."
                         : "No request triaged yet."}
                   </p>
                 </div>
@@ -548,11 +658,32 @@ function Index() {
                   <DecisionSkeleton />
                 ) : decision && ruling ? (
                   <DecisionCard
-                    key={requestText.slice(0, 24) + processedQueue.length}
+                    key={
+                      (reviewingItem?.id ?? requestText.slice(0, 24)) +
+                      ":" +
+                      (reviewingItem?.revision ?? 0) +
+                      ":" +
+                      (isRevising ? "revising" : "view")
+                    }
                     decision={decision}
                     ruling={ruling}
                     attachments={attachments}
                     onFinalize={handleFinalize}
+                    mode={
+                      reviewingItem
+                        ? isSupersededView
+                          ? "superseded"
+                          : isRevising
+                            ? "revising"
+                            : "finalized"
+                        : "draft"
+                    }
+                    reviewer={reviewer}
+                    onReviewerChange={setReviewer}
+                    finalizedReviewer={reviewingItem?.reviewer}
+                    finalizedAt={reviewingItem?.timestamp}
+                    onReopen={startRevision}
+                    onCancelRevision={() => setIsRevising(false)}
                   />
                 ) : (
                   <EmptyDecisionState />
@@ -732,14 +863,31 @@ function DecisionCard({
   ruling,
   attachments,
   onFinalize,
+  mode,
+  reviewer,
+  onReviewerChange,
+  finalizedReviewer,
+  finalizedAt,
+  onReopen,
+  onCancelRevision,
 }: {
   decision: Decision;
   ruling: RuleResult;
   attachments: Attachment[];
   onFinalize: (final: FinalDecision, wasOverridden: boolean) => void;
+  mode: "draft" | "finalized" | "revising" | "superseded";
+  reviewer: string;
+  onReviewerChange: (v: string) => void;
+  finalizedReviewer?: string;
+  finalizedAt?: number;
+  onReopen: () => void;
+  onCancelRevision: () => void;
 }) {
-  // Editable draft state for Override.
-  const [editing, setEditing] = useState(false);
+  const isEditable = mode === "draft" || mode === "revising";
+  // Editable draft state for Override. In "revising" mode, we open the form
+  // pre-populated with the finalized values so reviewers see what they're
+  // changing from.
+  const [editing, setEditing] = useState(mode === "revising");
   const [draftCategory, setDraftCategory] = useState<Category>(decision.category);
   const [draftPriority, setDraftPriority] = useState<Priority>(ruling.priority);
   const [draftRoute, setDraftRoute] = useState<string>(ruling.finalRoute);
@@ -749,8 +897,10 @@ function DecisionCard({
   const belowThreshold = decision.confidence < RULEBOOK.confidenceThreshold;
   const statusStyle = STATUS_STYLES[ruling.status];
   const routeOverridden = ruling.finalRoute !== decision.route;
+  const reviewerReady = reviewer.trim().length > 0;
 
   const acceptAsIs = () => {
+    if (!reviewerReady) return;
     onFinalize(
       {
         category: decision.category,
@@ -764,6 +914,7 @@ function DecisionCard({
   };
 
   const saveOverride = () => {
+    if (!reviewerReady) return;
     const changed =
       draftCategory !== decision.category ||
       draftPriority !== ruling.priority ||
@@ -935,30 +1086,70 @@ function DecisionCard({
         )}
       </div>
 
-      {/* Review controls */}
+      {/* Review controls — mode-dependent */}
       <div className="mt-6 border-t border-border pt-6">
-        {!editing ? (
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="border border-foreground bg-background py-2.5 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
-            >
-              Override
-            </button>
-            <button
-              type="button"
-              onClick={acceptAsIs}
-              className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90"
-            >
-              Accept &amp; Send to Queue
-            </button>
+        {mode === "superseded" ? (
+          <p className="font-serif text-sm italic text-muted-foreground">
+            This revision has been superseded by a newer decision. Open the
+            latest revision from the Queue to make further changes.
+          </p>
+        ) : mode === "finalized" ? (
+          <div className="space-y-3">
+            <p className="font-serif text-sm italic text-foreground">
+              Finalized decision — read-only.
+              {finalizedReviewer ? (
+                <>
+                  {" "}
+                  Accepted by{" "}
+                  <span className="not-italic font-semibold">
+                    {finalizedReviewer}
+                  </span>
+                  {finalizedAt
+                    ? ` at ${formatTime(finalizedAt)}`
+                    : null}
+                  .
+                </>
+              ) : null}
+            </p>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={onReopen}
+                className="border border-foreground bg-background py-2.5 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
+              >
+                Reopen for revision
+              </button>
+            </div>
+          </div>
+        ) : !editing ? (
+          <div className="space-y-4">
+            <ReviewerField value={reviewer} onChange={onReviewerChange} />
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="border border-foreground bg-background py-2.5 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
+              >
+                Override
+              </button>
+              <button
+                type="button"
+                onClick={acceptAsIs}
+                disabled={!reviewerReady}
+                title={reviewerReady ? undefined : "Enter your name to accept."}
+                className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Accept &amp; Send to Queue
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              Override Draft
+              {mode === "revising" ? "Revision Draft" : "Override Draft"}
             </div>
+
+            <ReviewerField value={reviewer} onChange={onReviewerChange} />
 
             <OverrideField label="Category">
               <select
@@ -1006,6 +1197,10 @@ function DecisionCard({
               <button
                 type="button"
                 onClick={() => {
+                  if (mode === "revising") {
+                    onCancelRevision();
+                    return;
+                  }
                   setEditing(false);
                   setDraftCategory(decision.category);
                   setDraftPriority(ruling.priority);
@@ -1018,14 +1213,44 @@ function DecisionCard({
               <button
                 type="button"
                 onClick={saveOverride}
-                className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90"
+                disabled={!reviewerReady}
+                title={reviewerReady ? undefined : "Enter your name to save."}
+                className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Save Override
+                {mode === "revising" ? "Save as revision" : "Save Override"}
               </button>
             </div>
           </div>
         )}
       </div>
+      {isEditable ? null : null}
+    </div>
+  );
+}
+
+function ReviewerField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-4">
+      <label
+        htmlFor="reviewer-name"
+        className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
+      >
+        Reviewer
+      </label>
+      <input
+        id="reviewer-name"
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Your name (required to finalize)"
+        className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
+      />
     </div>
   );
 }
@@ -1088,14 +1313,21 @@ function QueueView({
 
   return (
     <div className="space-y-6">
-      {/* Counters */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Stat label="Processed" value={items.length} />
+      {/* Counters — reflect current versions only; superseded rows are audit history. */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+        <Stat
+          label="Current"
+          value={items.filter((i) => !i.supersededById).length}
+        />
         <Stat label="Auto-routed" value={autoRoutedCount} tone="green" />
         <Stat label="Escalated" value={escalatedCount} tone="purple" />
         <Stat
           label="Overridden"
-          value={items.filter((i) => i.overridden).length}
+          value={items.filter((i) => i.overridden && !i.supersededById).length}
+        />
+        <Stat
+          label="Superseded"
+          value={items.filter((i) => i.supersededById).length}
         />
       </div>
 
@@ -1120,21 +1352,55 @@ function QueueView({
               const status = STATUS_STYLES[item.finalDecision.status];
               const isReviewing = reviewingId === item.id;
               const emb = item.aiRuling.embargo;
+              const isSuperseded = item.supersededById !== undefined;
               return (
                 <tr
                   key={item.id}
-                  className="border-b border-border/60 align-top last:border-b-0"
+                  className={`border-b border-border/60 align-top last:border-b-0 ${
+                    isSuperseded ? "bg-muted/30 text-muted-foreground" : ""
+                  }`}
                 >
                   <Td>
-                    <span className="font-mono text-[11px] text-muted-foreground">
-                      {formatTime(item.timestamp)}
-                    </span>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-mono text-[11px] text-muted-foreground">
+                        {formatTime(item.timestamp)}
+                      </span>
+                      {item.reviewer ? (
+                        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                          by {item.reviewer}
+                        </span>
+                      ) : null}
+                    </div>
                   </Td>
                   <Td>
                     <div className="flex flex-col gap-1">
-                      <span className="line-clamp-2 font-serif text-sm text-foreground">
-                        {shorten(item.requestText, 90)}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex items-center border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${
+                            isSuperseded
+                              ? "border-border bg-background text-muted-foreground line-through"
+                              : item.revision > 1
+                                ? "border-amber-300 bg-amber-50 text-amber-800"
+                                : "border-border bg-background text-muted-foreground"
+                          }`}
+                          title={
+                            isSuperseded
+                              ? "Superseded by a newer revision"
+                              : item.revision > 1
+                                ? "Revised from an earlier decision"
+                                : undefined
+                          }
+                        >
+                          v{item.revision}
+                        </span>
+                        <span
+                          className={`line-clamp-2 font-serif text-sm ${
+                            isSuperseded ? "text-muted-foreground" : "text-foreground"
+                          }`}
+                        >
+                          {shorten(item.requestText, 90)}
+                        </span>
+                      </div>
                       {item.attachments.length > 0 ? (
                         <span
                           title={item.attachments
@@ -1150,7 +1416,7 @@ function QueueView({
                     </div>
                   </Td>
                   <Td>
-                    <span className="font-serif text-sm text-foreground">
+                    <span className="font-serif text-sm">
                       {CATEGORY_LABELS[item.finalDecision.category]}
                     </span>
                   </Td>
@@ -1163,7 +1429,7 @@ function QueueView({
                     </span>
                   </Td>
                   <Td>
-                    <span className="font-serif text-sm text-foreground">
+                    <span className="font-serif text-sm">
                       {item.finalDecision.route}
                     </span>
                   </Td>
@@ -1227,7 +1493,11 @@ function QueueView({
                           : "border border-foreground bg-background px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground transition-colors hover:bg-foreground/5"
                       }
                     >
-                      {isReviewing ? "Reviewing…" : "Review"}
+                      {isReviewing
+                        ? "Open…"
+                        : isSuperseded
+                          ? "View"
+                          : "Open"}
                     </button>
                   </Td>
                 </tr>
