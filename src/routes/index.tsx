@@ -980,7 +980,12 @@ function DecisionCard({
   decision: Decision;
   ruling: RuleResult;
   attachments: Attachment[];
-  onFinalize: (final: FinalDecision, wasOverridden: boolean) => void;
+  onFinalize: (
+    final: FinalDecision,
+    wasOverridden: boolean,
+    reason: string,
+    guardrailAcknowledged: boolean,
+  ) => void;
   mode: "draft" | "finalized" | "revising" | "superseded";
   reviewer: string;
   onReviewerChange: (v: string) => void;
@@ -989,7 +994,6 @@ function DecisionCard({
   onReopen: () => void;
   onCancelRevision: () => void;
 }) {
-  const isEditable = mode === "draft" || mode === "revising";
   // Editable draft state for Override. In "revising" mode, we open the form
   // pre-populated with the finalized values so reviewers see what they're
   // changing from.
@@ -997,6 +1001,11 @@ function DecisionCard({
   const [draftCategory, setDraftCategory] = useState<Category>(decision.category);
   const [draftPriority, setDraftPriority] = useState<Priority>(ruling.priority);
   const [draftRoute, setDraftRoute] = useState<string>(ruling.finalRoute);
+  // Reason + acknowledgment are session-scoped to this card instance. The
+  // parent remounts the card on mode changes via `key`, so state resets
+  // naturally between draft/revising sessions.
+  const [reason, setReason] = useState("");
+  const [ackGuardrail, setAckGuardrail] = useState(false);
 
   const pri = PRIORITY_STYLES[ruling.priority];
   const pct = Math.round(decision.confidence * 100);
@@ -1004,7 +1013,15 @@ function DecisionCard({
   const statusStyle = STATUS_STYLES[ruling.status];
   const routeOverridden = ruling.finalRoute !== decision.route;
   const reviewerReady = reviewer.trim().length > 0;
+  const reasonTrimmed = reason.trim();
 
+  // The baseline for detecting "changes" and "guardrail bypass" is whatever
+  // the card is showing right now — the AI's proposal on v1, or the last
+  // finalized decision when revising.
+  const baselineIsEscalated = ruling.status !== "auto_routed";
+
+  // Accept-as-is keeps the current status, so no bypass is possible; only
+  // a reason is optional.
   const acceptAsIs = () => {
     if (!reviewerReady) return;
     onFinalize(
@@ -1016,24 +1033,43 @@ function DecisionCard({
         flags: ruling.flags,
       },
       false,
+      reasonTrimmed,
+      false,
     );
   };
 
+  // In override, a bypass occurs when the ruling is currently escalated and
+  // the reviewer routes the request away from the Human Review Queue. In
+  // that case the final status flips to auto_routed and we require an
+  // explicit acknowledgment plus a reason.
+  const willBypassGuardrail =
+    editing && baselineIsEscalated && draftRoute !== "Human Review Queue";
+  const overrideChanged =
+    draftCategory !== decision.category ||
+    draftPriority !== ruling.priority ||
+    draftRoute !== ruling.finalRoute;
+  const overrideReasonRequired = overrideChanged || willBypassGuardrail;
+  const canSaveOverride =
+    reviewerReady &&
+    (!overrideReasonRequired || reasonTrimmed.length > 0) &&
+    (!willBypassGuardrail || ackGuardrail);
+
   const saveOverride = () => {
-    if (!reviewerReady) return;
-    const changed =
-      draftCategory !== decision.category ||
-      draftPriority !== ruling.priority ||
-      draftRoute !== ruling.finalRoute;
+    if (!canSaveOverride) return;
+    const finalStatus: TriageStatus = willBypassGuardrail
+      ? "auto_routed"
+      : ruling.status;
     onFinalize(
       {
         category: draftCategory,
         priority: draftPriority,
         route: draftRoute,
-        status: ruling.status,
+        status: finalStatus,
         flags: ruling.flags,
       },
-      changed,
+      overrideChanged || willBypassGuardrail,
+      reasonTrimmed,
+      willBypassGuardrail,
     );
     setEditing(false);
   };
@@ -1098,9 +1134,6 @@ function DecisionCard({
       ) : null}
 
       {ruling.embargo.mentioned ? <EmbargoRow embargo={ruling.embargo} /> : null}
-
-
-
 
       <div className="grid grid-cols-[110px_minmax(0,1fr)] items-baseline gap-4">
         <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -1230,6 +1263,12 @@ function DecisionCard({
         ) : !editing ? (
           <div className="space-y-4">
             <ReviewerField value={reviewer} onChange={onReviewerChange} />
+            <ReasonField
+              value={reason}
+              onChange={setReason}
+              required={false}
+              helper="Optional — add context for the audit log."
+            />
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="button"
@@ -1299,6 +1338,46 @@ function DecisionCard({
               </select>
             </OverrideField>
 
+            {willBypassGuardrail ? (
+              <label className="flex items-start gap-3 border-l-4 border-red-600 bg-red-50/70 p-3">
+                <input
+                  type="checkbox"
+                  checked={ackGuardrail}
+                  onChange={(e) => setAckGuardrail(e.target.checked)}
+                  className="mt-1 h-4 w-4 shrink-0"
+                />
+                <span className="font-serif text-sm leading-snug text-red-900">
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-red-800">
+                    Safety escalation bypass
+                  </span>
+                  <br />
+                  I acknowledge I am overriding a safety escalation
+                  {ruling.flags.length > 0 ? (
+                    <>
+                      {" "}
+                      (<span className="italic">
+                        {ruling.flags.join("; ")}
+                      </span>)
+                    </>
+                  ) : null}{" "}
+                  and routing this request out of the Human Review Queue.
+                </span>
+              </label>
+            ) : null}
+
+            <ReasonField
+              value={reason}
+              onChange={setReason}
+              required={overrideReasonRequired}
+              helper={
+                overrideReasonRequired
+                  ? willBypassGuardrail
+                    ? "Required — explain why bypassing the safety escalation is appropriate."
+                    : "Required — explain why you are changing this decision."
+                  : "Optional — add context for the audit log."
+              }
+            />
+
             <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
               <button
                 type="button"
@@ -1311,6 +1390,8 @@ function DecisionCard({
                   setDraftCategory(decision.category);
                   setDraftPriority(ruling.priority);
                   setDraftRoute(ruling.finalRoute);
+                  setReason("");
+                  setAckGuardrail(false);
                 }}
                 className="border border-border bg-background py-2.5 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
               >
@@ -1319,8 +1400,16 @@ function DecisionCard({
               <button
                 type="button"
                 onClick={saveOverride}
-                disabled={!reviewerReady}
-                title={reviewerReady ? undefined : "Enter your name to save."}
+                disabled={!canSaveOverride}
+                title={
+                  !reviewerReady
+                    ? "Enter your name to save."
+                    : overrideReasonRequired && reasonTrimmed.length === 0
+                      ? "A reason is required for this change."
+                      : willBypassGuardrail && !ackGuardrail
+                        ? "Acknowledge the safety escalation bypass to continue."
+                        : undefined
+                }
                 className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {mode === "revising" ? "Save as revision" : "Save Override"}
@@ -1329,10 +1418,68 @@ function DecisionCard({
           </div>
         )}
       </div>
-      {isEditable ? null : null}
     </div>
   );
 }
+
+function ReasonField({
+  value,
+  onChange,
+  required,
+  helper,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  required: boolean;
+  helper: string;
+}) {
+  const empty = value.trim().length === 0;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <label
+          htmlFor="reason-textarea"
+          className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
+        >
+          Reason for change{" "}
+          {required ? (
+            <span className="text-red-700">*</span>
+          ) : (
+            <span className="text-muted-foreground/70">(optional)</span>
+          )}
+        </label>
+        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          {value.length}/500
+        </span>
+      </div>
+      <textarea
+        id="reason-textarea"
+        value={value}
+        maxLength={500}
+        onChange={(e) => onChange(e.target.value)}
+        rows={3}
+        placeholder={
+          required
+            ? "Why are you changing this decision? (recorded in the audit log)"
+            : "Add context for the audit log."
+        }
+        className={`w-full resize-none border bg-background px-3 py-2 font-serif text-sm text-foreground focus:outline-none ${
+          required && empty
+            ? "border-red-300 focus:border-red-600"
+            : "border-border focus:border-foreground"
+        }`}
+      />
+      <p
+        className={`font-serif text-xs italic ${
+          required && empty ? "text-red-700" : "text-muted-foreground"
+        }`}
+      >
+        {helper}
+      </p>
+    </div>
+  );
+}
+
 
 function ReviewerField({
   value,
