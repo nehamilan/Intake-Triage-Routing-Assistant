@@ -2,6 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { RULEBOOK, CATEGORY_LABELS, type Priority } from "@/lib/rulebook";
 import { mockClassify, type Decision } from "@/lib/mock-classify";
+import {
+  applyRules,
+  STATUS_LABELS,
+  type RuleResult,
+  type TriageStatus,
+} from "@/lib/apply-rules";
 
 export const Route = createFileRoute("/")({
   head: () => ({
