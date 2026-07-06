@@ -856,6 +856,7 @@ function Index() {
               onStartNew={() => setActiveTab("triage")}
               onReview={handleReview}
               reviewingId={reviewingId}
+              batchProgress={batchProgress}
             />
           )}
         </main>
