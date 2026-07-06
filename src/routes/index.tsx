@@ -2053,7 +2053,7 @@ function DecisionSkeleton() {
     <div
       className="flex flex-1 flex-col gap-6"
       role="status"
-      aria-label="Classifying request"
+      aria-label="Triaging request"
     >
       <div className="flex items-center gap-3">
         <div className="h-6 w-40 animate-pulse bg-foreground/10" />
