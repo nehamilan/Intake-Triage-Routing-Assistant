@@ -1672,6 +1672,22 @@ function QueueView({
           : ""}
       </p>
 
+      {batchProgress ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-3 border-l-4 border-foreground bg-foreground/5 px-4 py-3 font-mono text-[11px] uppercase tracking-widest text-foreground"
+        >
+          <Spinner />
+          <span className="font-bold">
+            Triaging {batchProgress.done} of {batchProgress.total}…
+          </span>
+          <span className="ml-auto normal-case tracking-normal text-muted-foreground">
+            Rows appear as each request resolves.
+          </span>
+        </div>
+      ) : null}
+
       <div className="overflow-x-auto border border-border bg-card">
         <table className="w-full min-w-[720px] border-collapse text-left">
           <thead>
