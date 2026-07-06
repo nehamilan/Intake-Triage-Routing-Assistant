@@ -401,12 +401,14 @@ function Index() {
     const now = Date.now();
     const total = SAMPLE_REQUESTS.length;
     setBatchProgress({ done: 0, total });
+    // Switch to the queue immediately so the reviewer watches rows land as
+    // each classification resolves, rather than staring at a spinner.
+    setActiveTab("queue");
 
     // Classify sequentially so we can show progress and stay well under any
     // per-second rate limits from the gateway. Failures for a single sample
     // don't abort the batch — they surface as a low-confidence placeholder
     // that lands in Human Review through the guardrails.
-    const items: QueueItem[] = [];
     for (let i = 0; i < SAMPLE_REQUESTS.length; i++) {
       const s = SAMPLE_REQUESTS[i];
       let d: Decision;
@@ -439,7 +441,7 @@ function Index() {
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
           : String(now + i);
-      items.push({
+      const item: QueueItem = {
         id: rowId,
         timestamp: now + i,
         requestText: s.text,
@@ -454,13 +456,13 @@ function Index() {
         changes: [],
         reason: "",
         guardrailAcknowledged: false,
-      });
+      };
+      // Append the row as soon as it resolves so the queue fills in visibly.
+      setProcessedQueue((prev) => [item, ...prev]);
       setBatchProgress({ done: i + 1, total });
     }
 
-    setProcessedQueue((prev) => [...items.reverse(), ...prev]);
     setBatchProgress(null);
-    setActiveTab("queue");
   };
 
   const handleReview = (item: QueueItem) => {
@@ -663,7 +665,7 @@ function Index() {
                   >
                     {isClassifying ? (
                       <>
-                        <Spinner /> Classifying…
+                        <Spinner /> Triaging…
                       </>
                     ) : (
                       "Triage Request"
@@ -674,14 +676,44 @@ function Index() {
                 {classifyError ? (
                   <div
                     role="alert"
-                    className="border-l-4 border-red-600 bg-red-50/70 p-3 font-mono text-[11px] text-red-800"
+                    className="flex flex-col gap-3 border-l-4 border-red-600 bg-red-50/70 p-3 font-mono text-[11px] text-red-800"
                   >
-                    <div className="mb-0.5 font-bold uppercase tracking-widest">
-                      Classifier error
+                    <div>
+                      <div className="mb-0.5 font-bold uppercase tracking-widest">
+                        Couldn't reach the classifier
+                      </div>
+                      <div className="font-serif text-sm italic leading-snug text-red-900/80">
+                        Something went wrong on the way to our triage service.
+                        Check your connection and try again — your request text
+                        and attachments are still here.
+                      </div>
+                      <details className="mt-2 font-mono text-[10px] uppercase tracking-widest text-red-900/60">
+                        <summary className="cursor-pointer">
+                          Technical detail
+                        </summary>
+                        <div className="mt-1 whitespace-pre-wrap break-words font-serif text-[11px] normal-case tracking-normal">
+                          {classifyError}
+                        </div>
+                      </details>
                     </div>
-                    <div className="font-serif text-sm italic leading-snug">
-                      {classifyError}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleTriage}
+                      disabled={
+                        requestText.trim().length === 0 ||
+                        isClassifying ||
+                        batchProgress !== null
+                      }
+                      className="inline-flex items-center justify-center gap-2 self-start border border-red-700 bg-white px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-red-800 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isClassifying ? (
+                        <>
+                          <Spinner /> Retrying…
+                        </>
+                      ) : (
+                        "Retry triage"
+                      )}
+                    </button>
                   </div>
                 ) : null}
 
@@ -731,8 +763,8 @@ function Index() {
                       >
                         {batchProgress ? (
                           <>
-                            <Spinner /> {batchProgress.done}/
-                            {batchProgress.total}
+                            <Spinner /> Triaging {batchProgress.done} of{" "}
+                            {batchProgress.total}…
                           </>
                         ) : (
                           "Triage all"
@@ -758,7 +790,7 @@ function Index() {
                   </h2>
                   <p className="mt-1 font-serif text-sm italic text-muted-foreground">
                     {isClassifying
-                      ? "Consulting the classifier…"
+                      ? "Triaging your request…"
                       : decision
                         ? reviewingItem
                           ? isSupersededView
@@ -824,6 +856,7 @@ function Index() {
               onStartNew={() => setActiveTab("triage")}
               onReview={handleReview}
               reviewingId={reviewingId}
+              batchProgress={batchProgress}
             />
           )}
         </main>
@@ -1559,6 +1592,7 @@ function QueueView({
   onStartNew,
   onReview,
   reviewingId,
+  batchProgress,
 }: {
   items: QueueItem[];
   currentQueue: QueueItem[];
@@ -1569,23 +1603,41 @@ function QueueView({
   onStartNew: () => void;
   onReview: (item: QueueItem) => void;
   reviewingId: string | null;
+  batchProgress: { done: number; total: number } | null;
 }) {
   if (items.length === 0) {
     return (
       <div className="border border-border bg-card p-12 text-center">
-        <p className="font-serif text-base italic text-muted-foreground">
-          Queue is empty.
-        </p>
-        <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          Triaged and reviewed requests will appear here.
-        </p>
-        <button
-          type="button"
-          onClick={onStartNew}
-          className="mt-6 border border-foreground bg-background py-2 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
-        >
-          Go to Triage
-        </button>
+        {batchProgress ? (
+          <>
+            <div
+              className="mx-auto flex items-center justify-center gap-2 font-mono text-[11px] font-bold uppercase tracking-widest text-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              <Spinner /> Triaging {batchProgress.done} of {batchProgress.total}…
+            </div>
+            <p className="mt-3 font-serif text-sm italic text-muted-foreground">
+              Rows will appear here as each request is classified.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="font-serif text-base italic text-muted-foreground">
+              Queue is empty.
+            </p>
+            <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              Triaged and reviewed requests will appear here.
+            </p>
+            <button
+              type="button"
+              onClick={onStartNew}
+              className="mt-6 border border-foreground bg-background py-2 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
+            >
+              Go to Triage
+            </button>
+          </>
+        )}
       </div>
     );
   }
@@ -1619,6 +1671,22 @@ function QueueView({
           ? ` · ${revisionCount} superseded revision${revisionCount === 1 ? "" : "s"} in log`
           : ""}
       </p>
+
+      {batchProgress ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-3 border-l-4 border-foreground bg-foreground/5 px-4 py-3 font-mono text-[11px] uppercase tracking-widest text-foreground"
+        >
+          <Spinner />
+          <span className="font-bold">
+            Triaging {batchProgress.done} of {batchProgress.total}…
+          </span>
+          <span className="ml-auto normal-case tracking-normal text-muted-foreground">
+            Rows appear as each request resolves.
+          </span>
+        </div>
+      ) : null}
 
       <div className="overflow-x-auto border border-border bg-card">
         <table className="w-full min-w-[720px] border-collapse text-left">
@@ -1985,7 +2053,7 @@ function DecisionSkeleton() {
     <div
       className="flex flex-1 flex-col gap-6"
       role="status"
-      aria-label="Classifying request"
+      aria-label="Triaging request"
     >
       <div className="flex items-center gap-3">
         <div className="h-6 w-40 animate-pulse bg-foreground/10" />
