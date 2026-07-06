@@ -674,14 +674,44 @@ function Index() {
                 {classifyError ? (
                   <div
                     role="alert"
-                    className="border-l-4 border-red-600 bg-red-50/70 p-3 font-mono text-[11px] text-red-800"
+                    className="flex flex-col gap-3 border-l-4 border-red-600 bg-red-50/70 p-3 font-mono text-[11px] text-red-800"
                   >
-                    <div className="mb-0.5 font-bold uppercase tracking-widest">
-                      Classifier error
+                    <div>
+                      <div className="mb-0.5 font-bold uppercase tracking-widest">
+                        Couldn't reach the classifier
+                      </div>
+                      <div className="font-serif text-sm italic leading-snug text-red-900/80">
+                        Something went wrong on the way to our triage service.
+                        Check your connection and try again — your request text
+                        and attachments are still here.
+                      </div>
+                      <details className="mt-2 font-mono text-[10px] uppercase tracking-widest text-red-900/60">
+                        <summary className="cursor-pointer">
+                          Technical detail
+                        </summary>
+                        <div className="mt-1 whitespace-pre-wrap break-words font-serif text-[11px] normal-case tracking-normal">
+                          {classifyError}
+                        </div>
+                      </details>
                     </div>
-                    <div className="font-serif text-sm italic leading-snug">
-                      {classifyError}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleTriage}
+                      disabled={
+                        requestText.trim().length === 0 ||
+                        isClassifying ||
+                        batchProgress !== null
+                      }
+                      className="inline-flex items-center justify-center gap-2 self-start border border-red-700 bg-white px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-red-800 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isClassifying ? (
+                        <>
+                          <Spinner /> Retrying…
+                        </>
+                      ) : (
+                        "Retry triage"
+                      )}
+                    </button>
                   </div>
                 ) : null}
 
