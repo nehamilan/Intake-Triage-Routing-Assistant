@@ -761,8 +761,8 @@ function Index() {
                       >
                         {batchProgress ? (
                           <>
-                            <Spinner /> {batchProgress.done}/
-                            {batchProgress.total}
+                            <Spinner /> Triaging {batchProgress.done} of{" "}
+                            {batchProgress.total}…
                           </>
                         ) : (
                           "Triage all"
