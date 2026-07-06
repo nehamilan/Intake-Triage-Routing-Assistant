@@ -663,7 +663,7 @@ function Index() {
                   >
                     {isClassifying ? (
                       <>
-                        <Spinner /> Classifying…
+                        <Spinner /> Triaging…
                       </>
                     ) : (
                       "Triage Request"
