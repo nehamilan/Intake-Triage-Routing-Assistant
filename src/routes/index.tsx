@@ -401,12 +401,14 @@ function Index() {
     const now = Date.now();
     const total = SAMPLE_REQUESTS.length;
     setBatchProgress({ done: 0, total });
+    // Switch to the queue immediately so the reviewer watches rows land as
+    // each classification resolves, rather than staring at a spinner.
+    setActiveTab("queue");
 
     // Classify sequentially so we can show progress and stay well under any
     // per-second rate limits from the gateway. Failures for a single sample
     // don't abort the batch — they surface as a low-confidence placeholder
     // that lands in Human Review through the guardrails.
-    const items: QueueItem[] = [];
     for (let i = 0; i < SAMPLE_REQUESTS.length; i++) {
       const s = SAMPLE_REQUESTS[i];
       let d: Decision;
@@ -439,7 +441,7 @@ function Index() {
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
           : String(now + i);
-      items.push({
+      const item: QueueItem = {
         id: rowId,
         timestamp: now + i,
         requestText: s.text,
@@ -454,13 +456,13 @@ function Index() {
         changes: [],
         reason: "",
         guardrailAcknowledged: false,
-      });
+      };
+      // Append the row as soon as it resolves so the queue fills in visibly.
+      setProcessedQueue((prev) => [item, ...prev]);
       setBatchProgress({ done: i + 1, total });
     }
 
-    setProcessedQueue((prev) => [...items.reverse(), ...prev]);
     setBatchProgress(null);
-    setActiveTab("queue");
   };
 
   const handleReview = (item: QueueItem) => {
