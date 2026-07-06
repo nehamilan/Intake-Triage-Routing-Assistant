@@ -1592,6 +1592,7 @@ function QueueView({
   onStartNew,
   onReview,
   reviewingId,
+  batchProgress,
 }: {
   items: QueueItem[];
   currentQueue: QueueItem[];
@@ -1602,23 +1603,41 @@ function QueueView({
   onStartNew: () => void;
   onReview: (item: QueueItem) => void;
   reviewingId: string | null;
+  batchProgress: { done: number; total: number } | null;
 }) {
   if (items.length === 0) {
     return (
       <div className="border border-border bg-card p-12 text-center">
-        <p className="font-serif text-base italic text-muted-foreground">
-          Queue is empty.
-        </p>
-        <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          Triaged and reviewed requests will appear here.
-        </p>
-        <button
-          type="button"
-          onClick={onStartNew}
-          className="mt-6 border border-foreground bg-background py-2 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
-        >
-          Go to Triage
-        </button>
+        {batchProgress ? (
+          <>
+            <div
+              className="mx-auto flex items-center justify-center gap-2 font-mono text-[11px] font-bold uppercase tracking-widest text-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              <Spinner /> Triaging {batchProgress.done} of {batchProgress.total}…
+            </div>
+            <p className="mt-3 font-serif text-sm italic text-muted-foreground">
+              Rows will appear here as each request is classified.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="font-serif text-base italic text-muted-foreground">
+              Queue is empty.
+            </p>
+            <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              Triaged and reviewed requests will appear here.
+            </p>
+            <button
+              type="button"
+              onClick={onStartNew}
+              className="mt-6 border border-foreground bg-background py-2 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
+            >
+              Go to Triage
+            </button>
+          </>
+        )}
       </div>
     );
   }
