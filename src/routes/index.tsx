@@ -790,7 +790,7 @@ function Index() {
                   </h2>
                   <p className="mt-1 font-serif text-sm italic text-muted-foreground">
                     {isClassifying
-                      ? "Consulting the classifier…"
+                      ? "Triaging your request…"
                       : decision
                         ? reviewingItem
                           ? isSupersededView
