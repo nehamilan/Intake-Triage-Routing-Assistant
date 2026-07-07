@@ -2114,6 +2114,37 @@ function Stat({
   );
 }
 
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: readonly { value: string; label: string }[];
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="border border-border bg-background px-2 py-1 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function Th({ children }: { children: React.ReactNode }) {
   return (
     <th className="px-3 py-3 font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
