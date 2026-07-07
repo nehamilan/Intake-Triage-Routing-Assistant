@@ -462,7 +462,13 @@ function Index() {
         guardrailAcknowledged: false,
       };
       // Append the row as soon as it resolves so the queue fills in visibly.
-      setProcessedQueue((prev) => [item, ...prev]);
+      try {
+        await persistNewRequest(item);
+        setProcessedQueue((prev) => [item, ...prev]);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setQueueError(`Couldn't save "${s.label}": ${message}`);
+      }
       setBatchProgress({ done: i + 1, total });
     }
 
