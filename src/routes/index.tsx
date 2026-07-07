@@ -157,6 +157,27 @@ function Index() {
     };
   }, []);
 
+  // Hydrate the queue from Lovable Cloud on mount so refreshes keep state.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const items = await loadQueue();
+        if (!cancelled) setProcessedQueue(items);
+      } catch (err) {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : String(err);
+          setQueueError(message);
+        }
+      } finally {
+        if (!cancelled) setQueueLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const trackObjectUrl = (url: string) => {
     workspaceObjectUrlsRef.current.push(url);
   };
