@@ -14,7 +14,122 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      request_revisions: {
+        Row: {
+          category: string
+          changes: Json
+          created_at: string
+          guardrail_acknowledged: boolean
+          id: string
+          priority: string
+          reason: string | null
+          request_id: string
+          reviewer: string
+          revision: number
+          route: string
+          status: string
+        }
+        Insert: {
+          category: string
+          changes?: Json
+          created_at?: string
+          guardrail_acknowledged?: boolean
+          id?: string
+          priority: string
+          reason?: string | null
+          request_id: string
+          reviewer: string
+          revision: number
+          route: string
+          status: string
+        }
+        Update: {
+          category?: string
+          changes?: Json
+          created_at?: string
+          guardrail_acknowledged?: boolean
+          id?: string
+          priority?: string
+          reason?: string | null
+          request_id?: string
+          reviewer?: string
+          revision?: number
+          route?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "request_revisions_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      requests: {
+        Row: {
+          ai_category: string
+          ai_confidence: number
+          ai_parse_failed: boolean
+          ai_priority: string
+          ai_reason: string
+          ai_route: string
+          attachments: Json
+          created_at: string
+          current_revision: number
+          final_category: string
+          final_priority: string
+          final_route: string
+          flags: Json
+          id: string
+          request_text: string
+          reviewer_note: string | null
+          status: string
+          was_overridden: boolean
+        }
+        Insert: {
+          ai_category: string
+          ai_confidence: number
+          ai_parse_failed?: boolean
+          ai_priority: string
+          ai_reason: string
+          ai_route: string
+          attachments?: Json
+          created_at?: string
+          current_revision?: number
+          final_category: string
+          final_priority: string
+          final_route: string
+          flags?: Json
+          id?: string
+          request_text: string
+          reviewer_note?: string | null
+          status: string
+          was_overridden?: boolean
+        }
+        Update: {
+          ai_category?: string
+          ai_confidence?: number
+          ai_parse_failed?: boolean
+          ai_priority?: string
+          ai_reason?: string
+          ai_route?: string
+          attachments?: Json
+          created_at?: string
+          current_revision?: number
+          final_category?: string
+          final_priority?: string
+          final_route?: string
+          flags?: Json
+          id?: string
+          request_text?: string
+          reviewer_note?: string | null
+          status?: string
+          was_overridden?: boolean
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
