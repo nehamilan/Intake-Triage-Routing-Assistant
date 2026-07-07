@@ -112,9 +112,81 @@ function parseFailureDecision(): Decision {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Deterministic PRE-CHECK layer.
+//
+// Safety-critical routing must never depend on the model alone. This is the
+// leading slice of the "deterministic guardrails -> model -> deterministic
+// guardrails" sandwich: the trailing slice lives in `applyRules` on the
+// client. Even if the LLM call succeeds with a confident-but-wrong answer,
+// or fails entirely, these text-driven patterns guarantee the riskiest
+// signals still land on a human reviewer.
+//
+// Two patterns are handled here:
+//   1. Privacy incident — short-circuits the model entirely. We do not want
+//      to spend a model call, add latency, or introduce any chance of a
+//      benign-looking classification on a suspected breach.
+//   2. Restricted-access-without-approval — we still call the model (a
+//      curator wants its category/reason), but the guardrail escalation is
+//      enforced downstream in `applyRules` regardless of what the model
+//      says. This function only records the pre-check hit for logs.
+// ---------------------------------------------------------------------------
+
+const PRIVACY_TRIGGERS = [
+  "breach",
+  "exposed",
+  "accidentally uploaded",
+  "patient names",
+  "personal data",
+];
+const ACCESS_TRIGGERS = ["access", "restricted", "sensitive"];
+const APPROVAL_TERMS = ["approval", "ethics", "irb", "clearance"];
+
+const containsAny = (text: string, terms: readonly string[]) =>
+  terms.some((t) => text.includes(t));
+
+/**
+ * Short-circuit Decision for a suspected privacy incident. Category is set
+ * to `restricted_data_access` (the safest cell in the rulebook) purely so
+ * the UI has something coherent to show; `applyRules` will overwrite the
+ * route to Human Review Queue and stamp the privacy-incident status.
+ */
+function privacyIncidentDecision(): Decision {
+  return {
+    category: "restricted_data_access",
+    priority: "urgent",
+    route: RULEBOOK.routes.restricted_data_access,
+    reason:
+      "Pre-check: request text matches privacy-incident patterns. Model skipped; escalated to human review.",
+    confidence: 1,
+  };
+}
+
 export const classifyRequest = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data }): Promise<Decision> => {
+    const text = data.requestText.toLowerCase();
+
+    // Pre-check #1: privacy incident. Short-circuit — no model call.
+    if (containsAny(text, PRIVACY_TRIGGERS)) {
+      console.info(
+        "[classifyRequest] Pre-check hit: privacy incident. Skipping model.",
+      );
+      return privacyIncidentDecision();
+    }
+
+    // Pre-check #2: restricted-access-without-approval. Record for logs; the
+    // hard guardrail is enforced deterministically in `applyRules` and does
+    // not rely on the model's category or confidence.
+    if (
+      containsAny(text, ACCESS_TRIGGERS) &&
+      !containsAny(text, APPROVAL_TERMS)
+    ) {
+      console.info(
+        "[classifyRequest] Pre-check hit: restricted access without stated approval. Calling model; guardrail will force escalation.",
+      );
+    }
+
     const key = process.env.LOVABLE_API_KEY;
     if (!key) {
       // Operator misconfiguration, not a model failure — surface as an error.
