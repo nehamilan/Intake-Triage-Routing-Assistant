@@ -131,6 +131,11 @@ function Index() {
     total: number;
   } | null>(null);
 
+  // Persistence state — loaded from Lovable Cloud on mount. Any DB error
+  // surfaces in the queue view so the reviewer knows the row didn't save.
+  const [queueLoading, setQueueLoading] = useState(true);
+  const [queueError, setQueueError] = useState<string | null>(null);
+
   const classify = useServerFn(classifyRequest);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
