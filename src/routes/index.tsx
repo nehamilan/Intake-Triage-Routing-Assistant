@@ -254,7 +254,7 @@ function Index() {
     };
   };
 
-  const handleFinalize = (
+  const handleFinalize = async (
     final: FinalDecision,
     wasOverridden: boolean,
     reason: string,
@@ -286,6 +286,14 @@ function Index() {
           guardrailAcknowledged,
         },
       );
+      try {
+        await persistRevision(newRow);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setQueueError(`Couldn't save revision: ${message}`);
+        return;
+      }
+      setQueueError(null);
       setProcessedQueue((queue) => [
         newRow,
         ...queue.map((q) =>
@@ -306,24 +314,30 @@ function Index() {
         flags: ruling.flags,
       };
       const changes = computeChanges(aiBaseline, final);
-      setProcessedQueue((prev) => [
-        buildQueueItem(
-          requestText,
-          attachments,
-          final,
-          decision,
-          ruling,
-          wasOverridden,
-          {
-            reviewer: reviewerName,
-            revision: 1,
-            changes,
-            reason,
-            guardrailAcknowledged,
-          },
-        ),
-        ...prev,
-      ]);
+      const newRow = buildQueueItem(
+        requestText,
+        attachments,
+        final,
+        decision,
+        ruling,
+        wasOverridden,
+        {
+          reviewer: reviewerName,
+          revision: 1,
+          changes,
+          reason,
+          guardrailAcknowledged,
+        },
+      );
+      try {
+        await persistNewRequest(newRow);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setQueueError(`Couldn't save request: ${message}`);
+        return;
+      }
+      setQueueError(null);
+      setProcessedQueue((prev) => [newRow, ...prev]);
     }
     // Reset the workspace for the next intake. Keep the object URLs alive so
     // the queue entry can still render its previews.
