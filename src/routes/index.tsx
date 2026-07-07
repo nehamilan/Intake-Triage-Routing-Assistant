@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   RULEBOOK,
   CATEGORY_LABELS,
@@ -22,6 +22,16 @@ import {
   formatBytes,
   isImageMime,
 } from "@/lib/attachments";
+import {
+  loadQueue,
+  persistNewRequest,
+  persistRevision,
+} from "@/lib/queue-db";
+import type {
+  FieldChange,
+  FinalDecision,
+  QueueItem,
+} from "@/lib/queue-types";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -45,54 +55,8 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-// ---------- Types ----------
+// ---------- Constants ----------
 
-interface FinalDecision {
-  category: Category;
-  priority: Priority;
-  route: string;
-  status: TriageStatus;
-  flags: string[];
-}
-
-type FieldChangeField = "category" | "priority" | "route" | "status";
-interface FieldChange {
-  field: FieldChangeField;
-  from: string;
-  to: string;
-}
-
-interface QueueItem {
-  id: string;
-  timestamp: number;
-  requestText: string;
-  attachments: Attachment[];
-  aiDecision: Decision;
-  aiRuling: RuleResult;
-  finalDecision: FinalDecision;
-  overridden: boolean;
-  // Immutable audit log — a revision appends a new row and marks the
-  // predecessor as superseded via these pointers. Existing rows are never
-  // otherwise mutated after they land in the queue.
-  reviewer: string;
-  revision: number;
-  // Shared across every version of a single request; equals the id of v1.
-  // Lets the queue table collapse to one row per request without walking
-  // the supersedesId chain on every render.
-  rootId: string;
-  supersedesId?: string;
-  supersededById?: string;
-  // Frozen at save time — diff of decision fields vs the previous version
-  // (or vs the AI's proposal on v1). Empty on v1 with no overrides, and
-  // empty on any re-endorsement that changed no decision fields.
-  changes: FieldChange[];
-  // Required whenever changes.length > 0 or the reviewer bypassed a
-  // safety escalation. Empty string is otherwise acceptable.
-  reason: string;
-  // True only when the reviewer routed away from Human Review Queue on a
-  // ruling that was escalated by a guardrail. Records deliberate bypass.
-  guardrailAcknowledged: boolean;
-}
 
 // All routes selectable in the Override control.
 const AVAILABLE_ROUTES: readonly string[] = [
@@ -167,6 +131,11 @@ function Index() {
     total: number;
   } | null>(null);
 
+  // Persistence state — loaded from Lovable Cloud on mount. Any DB error
+  // surfaces in the queue view so the reviewer knows the row didn't save.
+  const [queueLoading, setQueueLoading] = useState(true);
+  const [queueError, setQueueError] = useState<string | null>(null);
+
   const classify = useServerFn(classifyRequest);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -185,6 +154,27 @@ function Index() {
           // ignore
         }
       }
+    };
+  }, []);
+
+  // Hydrate the queue from Lovable Cloud on mount so refreshes keep state.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const items = await loadQueue();
+        if (!cancelled) setProcessedQueue(items);
+      } catch (err) {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : String(err);
+          setQueueError(message);
+        }
+      } finally {
+        if (!cancelled) setQueueLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -264,7 +254,7 @@ function Index() {
     };
   };
 
-  const handleFinalize = (
+  const handleFinalize = async (
     final: FinalDecision,
     wasOverridden: boolean,
     reason: string,
@@ -296,6 +286,14 @@ function Index() {
           guardrailAcknowledged,
         },
       );
+      try {
+        await persistRevision(newRow);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setQueueError(`Couldn't save revision: ${message}`);
+        return;
+      }
+      setQueueError(null);
       setProcessedQueue((queue) => [
         newRow,
         ...queue.map((q) =>
@@ -316,24 +314,30 @@ function Index() {
         flags: ruling.flags,
       };
       const changes = computeChanges(aiBaseline, final);
-      setProcessedQueue((prev) => [
-        buildQueueItem(
-          requestText,
-          attachments,
-          final,
-          decision,
-          ruling,
-          wasOverridden,
-          {
-            reviewer: reviewerName,
-            revision: 1,
-            changes,
-            reason,
-            guardrailAcknowledged,
-          },
-        ),
-        ...prev,
-      ]);
+      const newRow = buildQueueItem(
+        requestText,
+        attachments,
+        final,
+        decision,
+        ruling,
+        wasOverridden,
+        {
+          reviewer: reviewerName,
+          revision: 1,
+          changes,
+          reason,
+          guardrailAcknowledged,
+        },
+      );
+      try {
+        await persistNewRequest(newRow);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setQueueError(`Couldn't save request: ${message}`);
+        return;
+      }
+      setQueueError(null);
+      setProcessedQueue((prev) => [newRow, ...prev]);
     }
     // Reset the workspace for the next intake. Keep the object URLs alive so
     // the queue entry can still render its previews.
@@ -458,7 +462,13 @@ function Index() {
         guardrailAcknowledged: false,
       };
       // Append the row as soon as it resolves so the queue fills in visibly.
-      setProcessedQueue((prev) => [item, ...prev]);
+      try {
+        await persistNewRequest(item);
+        setProcessedQueue((prev) => [item, ...prev]);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setQueueError(`Couldn't save "${s.label}": ${message}`);
+      }
       setBatchProgress({ done: i + 1, total });
     }
 
@@ -857,6 +867,8 @@ function Index() {
               onReview={handleReview}
               reviewingId={reviewingId}
               batchProgress={batchProgress}
+              queueLoading={queueLoading}
+              queueError={queueError}
             />
           )}
         </main>
@@ -1593,6 +1605,8 @@ function QueueView({
   onReview,
   reviewingId,
   batchProgress,
+  queueLoading,
+  queueError,
 }: {
   items: QueueItem[];
   currentQueue: QueueItem[];
@@ -1604,11 +1618,40 @@ function QueueView({
   onReview: (item: QueueItem) => void;
   reviewingId: string | null;
   batchProgress: { done: number; total: number } | null;
+  queueLoading: boolean;
+  queueError: string | null;
 }) {
+  // Filters — all default to "all". Filter state is local to the queue view
+  // since it isn't relevant anywhere else.
+  const [statusFilter, setStatusFilter] = useState<"all" | "auto_routed" | "escalated">("all");
+  const [routeFilter, setRouteFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<"all" | Priority>("all");
+
+  const availableRoutes = useMemo(() => {
+    const set = new Set<string>();
+    for (const q of currentQueue) set.add(q.finalDecision.route);
+    return Array.from(set).sort();
+  }, [currentQueue]);
+
+  if (queueLoading) {
+    return (
+      <div className="border border-border bg-card p-12 text-center">
+        <div
+          className="mx-auto flex items-center justify-center gap-2 font-mono text-[11px] font-bold uppercase tracking-widest text-foreground"
+          role="status"
+        >
+          <Spinner /> Loading queue…
+        </div>
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div className="border border-border bg-card p-12 text-center">
-        {batchProgress ? (
+        {queueError ? (
+          <p className="font-serif text-sm italic text-red-800">{queueError}</p>
+        ) : batchProgress ? (
           <>
             <div
               className="mx-auto flex items-center justify-center gap-2 font-mono text-[11px] font-bold uppercase tracking-widest text-foreground"
@@ -1642,12 +1685,26 @@ function QueueView({
     );
   }
 
+
   // Fold revisions into a single row per request. Table always shows the
   // latest version; the audit trail lives inside the workspace view.
-  const rows = currentQueue;
+  const allRows = currentQueue;
+  const rows = allRows.filter((item) => {
+    if (
+      statusFilter === "auto_routed" &&
+      item.finalDecision.status !== "auto_routed"
+    ) return false;
+    if (
+      statusFilter === "escalated" &&
+      item.finalDecision.status === "auto_routed"
+    ) return false;
+    if (routeFilter !== "all" && item.finalDecision.route !== routeFilter)
+      return false;
+    if (priorityFilter !== "all" && item.finalDecision.priority !== priorityFilter)
+      return false;
+    return true;
+  });
   const anyEmbargo = rows.some((i) => i.aiRuling.embargo.mentioned);
-  // Count revisions per request so the row can advertise them without
-  // having to walk the pointer chain on every render.
   const revisionsPerRoot = new Map<string, number>();
   for (const item of items) {
     revisionsPerRoot.set(
@@ -1655,22 +1712,82 @@ function QueueView({
       (revisionsPerRoot.get(item.rootId) ?? 0) + 1,
     );
   }
+  const filtersActive =
+    statusFilter !== "all" || routeFilter !== "all" || priorityFilter !== "all";
 
   return (
     <div className="space-y-6">
+      {queueError ? (
+        <div
+          role="alert"
+          className="border-l-4 border-red-600 bg-red-50/70 px-4 py-2 font-mono text-[11px] text-red-800"
+        >
+          {queueError}
+        </div>
+      ) : null}
       {/* Counters — always over current versions. Revisions surface below. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Stat label="Current" value={rows.length} />
+        <Stat label="Current" value={allRows.length} />
         <Stat label="Auto-routed" value={autoRoutedCount} tone="green" />
         <Stat label="Escalated" value={escalatedCount} tone="purple" />
         <Stat label="Overridden" value={overriddenCount} />
       </div>
       <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-        {rows.length} request{rows.length === 1 ? "" : "s"}
+        {filtersActive
+          ? `${rows.length} of ${allRows.length} request${allRows.length === 1 ? "" : "s"} (filtered)`
+          : `${allRows.length} request${allRows.length === 1 ? "" : "s"}`}
         {revisionCount > 0
           ? ` · ${revisionCount} superseded revision${revisionCount === 1 ? "" : "s"} in log`
           : ""}
       </p>
+
+      {/* Filter controls — status / route / priority, over current versions. */}
+      <div className="flex flex-wrap items-end gap-3 border border-dashed border-border bg-card/50 p-3">
+        <FilterSelect
+          label="Status"
+          value={statusFilter}
+          onChange={(v) => setStatusFilter(v as "all" | "auto_routed" | "escalated")}
+          options={[
+            { value: "all", label: "All" },
+            { value: "auto_routed", label: "Auto-routed" },
+            { value: "escalated", label: "Escalated" },
+          ]}
+        />
+        <FilterSelect
+          label="Route"
+          value={routeFilter}
+          onChange={setRouteFilter}
+          options={[
+            { value: "all", label: "All" },
+            ...availableRoutes.map((r) => ({ value: r, label: r })),
+          ]}
+        />
+        <FilterSelect
+          label="Priority"
+          value={priorityFilter}
+          onChange={(v) => setPriorityFilter(v as "all" | Priority)}
+          options={[
+            { value: "all", label: "All" },
+            { value: "urgent", label: "Urgent" },
+            { value: "normal", label: "Normal" },
+            { value: "low", label: "Low" },
+          ]}
+        />
+        {filtersActive ? (
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter("all");
+              setRouteFilter("all");
+              setPriorityFilter("all");
+            }}
+            className="ml-auto border border-border bg-background px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
+          >
+            Clear filters
+          </button>
+        ) : null}
+      </div>
+
 
       {batchProgress ? (
         <div
@@ -1994,6 +2111,37 @@ function Stat({
       </div>
       <div className={`mt-1 font-serif text-2xl ${toneClass}`}>{value}</div>
     </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: readonly { value: string; label: string }[];
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="border border-border bg-background px-2 py-1 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
