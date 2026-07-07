@@ -1605,6 +1605,8 @@ function QueueView({
   onReview,
   reviewingId,
   batchProgress,
+  queueLoading,
+  queueError,
 }: {
   items: QueueItem[];
   currentQueue: QueueItem[];
@@ -1616,11 +1618,40 @@ function QueueView({
   onReview: (item: QueueItem) => void;
   reviewingId: string | null;
   batchProgress: { done: number; total: number } | null;
+  queueLoading: boolean;
+  queueError: string | null;
 }) {
+  // Filters — all default to "all". Filter state is local to the queue view
+  // since it isn't relevant anywhere else.
+  const [statusFilter, setStatusFilter] = useState<"all" | "auto_routed" | "escalated">("all");
+  const [routeFilter, setRouteFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<"all" | Priority>("all");
+
+  const availableRoutes = useMemo(() => {
+    const set = new Set<string>();
+    for (const q of currentQueue) set.add(q.finalDecision.route);
+    return Array.from(set).sort();
+  }, [currentQueue]);
+
+  if (queueLoading) {
+    return (
+      <div className="border border-border bg-card p-12 text-center">
+        <div
+          className="mx-auto flex items-center justify-center gap-2 font-mono text-[11px] font-bold uppercase tracking-widest text-foreground"
+          role="status"
+        >
+          <Spinner /> Loading queue…
+        </div>
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div className="border border-border bg-card p-12 text-center">
-        {batchProgress ? (
+        {queueError ? (
+          <p className="font-serif text-sm italic text-red-800">{queueError}</p>
+        ) : batchProgress ? (
           <>
             <div
               className="mx-auto flex items-center justify-center gap-2 font-mono text-[11px] font-bold uppercase tracking-widest text-foreground"
@@ -1653,6 +1684,7 @@ function QueueView({
       </div>
     );
   }
+
 
   // Fold revisions into a single row per request. Table always shows the
   // latest version; the audit trail lives inside the workspace view.
