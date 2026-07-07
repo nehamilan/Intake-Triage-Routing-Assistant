@@ -55,54 +55,8 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-// ---------- Types ----------
+// ---------- Constants ----------
 
-interface FinalDecision {
-  category: Category;
-  priority: Priority;
-  route: string;
-  status: TriageStatus;
-  flags: string[];
-}
-
-type FieldChangeField = "category" | "priority" | "route" | "status";
-interface FieldChange {
-  field: FieldChangeField;
-  from: string;
-  to: string;
-}
-
-interface QueueItem {
-  id: string;
-  timestamp: number;
-  requestText: string;
-  attachments: Attachment[];
-  aiDecision: Decision;
-  aiRuling: RuleResult;
-  finalDecision: FinalDecision;
-  overridden: boolean;
-  // Immutable audit log — a revision appends a new row and marks the
-  // predecessor as superseded via these pointers. Existing rows are never
-  // otherwise mutated after they land in the queue.
-  reviewer: string;
-  revision: number;
-  // Shared across every version of a single request; equals the id of v1.
-  // Lets the queue table collapse to one row per request without walking
-  // the supersedesId chain on every render.
-  rootId: string;
-  supersedesId?: string;
-  supersededById?: string;
-  // Frozen at save time — diff of decision fields vs the previous version
-  // (or vs the AI's proposal on v1). Empty on v1 with no overrides, and
-  // empty on any re-endorsement that changed no decision fields.
-  changes: FieldChange[];
-  // Required whenever changes.length > 0 or the reviewer bypassed a
-  // safety escalation. Empty string is otherwise acceptable.
-  reason: string;
-  // True only when the reviewer routed away from Human Review Queue on a
-  // ruling that was escalated by a guardrail. Records deliberate bypass.
-  guardrailAcknowledged: boolean;
-}
 
 // All routes selectable in the Override control.
 const AVAILABLE_ROUTES: readonly string[] = [
