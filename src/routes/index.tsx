@@ -1688,10 +1688,23 @@ function QueueView({
 
   // Fold revisions into a single row per request. Table always shows the
   // latest version; the audit trail lives inside the workspace view.
-  const rows = currentQueue;
+  const allRows = currentQueue;
+  const rows = allRows.filter((item) => {
+    if (
+      statusFilter === "auto_routed" &&
+      item.finalDecision.status !== "auto_routed"
+    ) return false;
+    if (
+      statusFilter === "escalated" &&
+      item.finalDecision.status === "auto_routed"
+    ) return false;
+    if (routeFilter !== "all" && item.finalDecision.route !== routeFilter)
+      return false;
+    if (priorityFilter !== "all" && item.finalDecision.priority !== priorityFilter)
+      return false;
+    return true;
+  });
   const anyEmbargo = rows.some((i) => i.aiRuling.embargo.mentioned);
-  // Count revisions per request so the row can advertise them without
-  // having to walk the pointer chain on every render.
   const revisionsPerRoot = new Map<string, number>();
   for (const item of items) {
     revisionsPerRoot.set(
@@ -1699,22 +1712,82 @@ function QueueView({
       (revisionsPerRoot.get(item.rootId) ?? 0) + 1,
     );
   }
+  const filtersActive =
+    statusFilter !== "all" || routeFilter !== "all" || priorityFilter !== "all";
 
   return (
     <div className="space-y-6">
+      {queueError ? (
+        <div
+          role="alert"
+          className="border-l-4 border-red-600 bg-red-50/70 px-4 py-2 font-mono text-[11px] text-red-800"
+        >
+          {queueError}
+        </div>
+      ) : null}
       {/* Counters — always over current versions. Revisions surface below. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Stat label="Current" value={rows.length} />
+        <Stat label="Current" value={allRows.length} />
         <Stat label="Auto-routed" value={autoRoutedCount} tone="green" />
         <Stat label="Escalated" value={escalatedCount} tone="purple" />
         <Stat label="Overridden" value={overriddenCount} />
       </div>
       <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-        {rows.length} request{rows.length === 1 ? "" : "s"}
+        {filtersActive
+          ? `${rows.length} of ${allRows.length} request${allRows.length === 1 ? "" : "s"} (filtered)`
+          : `${allRows.length} request${allRows.length === 1 ? "" : "s"}`}
         {revisionCount > 0
           ? ` · ${revisionCount} superseded revision${revisionCount === 1 ? "" : "s"} in log`
           : ""}
       </p>
+
+      {/* Filter controls — status / route / priority, over current versions. */}
+      <div className="flex flex-wrap items-end gap-3 border border-dashed border-border bg-card/50 p-3">
+        <FilterSelect
+          label="Status"
+          value={statusFilter}
+          onChange={(v) => setStatusFilter(v as "all" | "auto_routed" | "escalated")}
+          options={[
+            { value: "all", label: "All" },
+            { value: "auto_routed", label: "Auto-routed" },
+            { value: "escalated", label: "Escalated" },
+          ]}
+        />
+        <FilterSelect
+          label="Route"
+          value={routeFilter}
+          onChange={setRouteFilter}
+          options={[
+            { value: "all", label: "All" },
+            ...availableRoutes.map((r) => ({ value: r, label: r })),
+          ]}
+        />
+        <FilterSelect
+          label="Priority"
+          value={priorityFilter}
+          onChange={(v) => setPriorityFilter(v as "all" | Priority)}
+          options={[
+            { value: "all", label: "All" },
+            { value: "urgent", label: "Urgent" },
+            { value: "normal", label: "Normal" },
+            { value: "low", label: "Low" },
+          ]}
+        />
+        {filtersActive ? (
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter("all");
+              setRouteFilter("all");
+              setPriorityFilter("all");
+            }}
+            className="ml-auto border border-border bg-background px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
+          >
+            Clear filters
+          </button>
+        ) : null}
+      </div>
+
 
       {batchProgress ? (
         <div
