@@ -867,6 +867,8 @@ function Index() {
               onReview={handleReview}
               reviewingId={reviewingId}
               batchProgress={batchProgress}
+              queueLoading={queueLoading}
+              queueError={queueError}
             />
           )}
         </main>
