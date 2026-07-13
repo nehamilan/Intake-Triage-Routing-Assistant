@@ -580,6 +580,7 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
 
               </TabButton>
             </nav>
+            {headerControls ? <div className="sm:ml-4">{headerControls}</div> : null}
           </div>
           <p className="mt-2 font-serif text-sm italic text-muted-foreground sm:text-base">
             Decision support — a human reviews every decision.
