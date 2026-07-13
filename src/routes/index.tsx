@@ -33,6 +33,8 @@ import type {
   QueueItem,
 } from "@/lib/queue-types";
 
+import { AuthGate, ViewerDashboard } from "@/components/AuthGate";
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -52,8 +54,17 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: Index,
+  component: RouteComponent,
 });
+
+function RouteComponent() {
+  return (
+    <AuthGate
+      agentView={({ header }) => <Index headerControls={header} />}
+      viewerView={({ header }) => <ViewerDashboard header={header} />}
+    />
+  );
+}
 
 // ---------- Constants ----------
 
@@ -108,7 +119,7 @@ function computeChanges(
 
 // ---------- Root component ----------
 
-function Index() {
+function Index({ headerControls }: { headerControls?: React.ReactNode }) {
   const [requestText, setRequestText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [activeTab, setActiveTab] = useState<"triage" | "queue">("triage");
@@ -569,6 +580,7 @@ function Index() {
 
               </TabButton>
             </nav>
+            {headerControls ? <div className="sm:ml-4">{headerControls}</div> : null}
           </div>
           <p className="mt-2 font-serif text-sm italic text-muted-foreground sm:text-base">
             Decision support — a human reviews every decision.
