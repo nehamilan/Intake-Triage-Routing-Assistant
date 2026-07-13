@@ -10,6 +10,7 @@
  */
 
 import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 
@@ -163,8 +164,19 @@ function privacyIncidentDecision(): Decision {
 }
 
 export const classifyRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => InputSchema.parse(input))
-  .handler(async ({ data }): Promise<Decision> => {
+  .handler(async ({ data, context }): Promise<Decision> => {
+    // Authorization: only signed-in "agent" users may classify. Viewers and
+    // unauthenticated callers are rejected before any model call happens.
+    const { data: isAgent, error: roleErr } = await context.supabase.rpc(
+      "has_role",
+      { _user_id: context.userId, _role: "agent" },
+    );
+    if (roleErr || !isAgent) {
+      throw new Error("Forbidden: agent role required to classify requests.");
+    }
+
     const text = data.requestText.toLowerCase();
 
     // Pre-check #1: privacy incident. Short-circuit — no model call.
