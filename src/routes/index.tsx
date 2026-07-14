@@ -174,7 +174,22 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
     (async () => {
       try {
         const items = await loadQueue();
-        if (!cancelled) setProcessedQueue(items);
+        if (!cancelled) {
+          // Merge, don't overwrite: the user may have finalized or run
+          // "Triage all" while this initial load was still in flight.
+          // Those rows were persisted AND prepended to state; a naive
+          // setProcessedQueue(items) would drop them from the UI until
+          // the next refresh. Dedupe by revision id, keeping any locally
+          // added rows that aren't in the DB snapshot yet.
+          setProcessedQueue((prev) => {
+            if (prev.length === 0) return items;
+            const seen = new Set(items.map((i) => i.id));
+            const extras = prev.filter((i) => !seen.has(i.id));
+            const merged = [...extras, ...items];
+            merged.sort((a, b) => b.timestamp - a.timestamp);
+            return merged;
+          });
+        }
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
