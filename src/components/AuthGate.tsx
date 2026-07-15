@@ -38,6 +38,12 @@ export function AuthGate({
   const name = displayName || user.email || "user";
   const header = (
     <div className="flex items-center gap-3">
+      <Link
+        to="/dashboard"
+        className="border border-border bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
+      >
+        Dashboard
+      </Link>
       <div className="text-right">
         <div className="font-serif text-sm leading-tight text-foreground">{name}</div>
         <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
