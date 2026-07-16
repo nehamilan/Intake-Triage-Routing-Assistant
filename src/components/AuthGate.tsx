@@ -44,6 +44,14 @@ export function AuthGate({
       >
         Dashboard
       </Link>
+      {role === "agent" && (
+        <Link
+          to="/evaluation"
+          className="border border-border bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
+        >
+          Evaluation
+        </Link>
+      )}
       <div className="text-right">
         <div className="font-serif text-sm leading-tight text-foreground">{name}</div>
         <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
