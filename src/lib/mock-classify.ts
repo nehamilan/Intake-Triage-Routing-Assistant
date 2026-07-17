@@ -101,7 +101,7 @@ export function mockClassify(requestText: string): Decision {
         : ".");
   }
 
-  const route = RULEBOOK.routes[category];
+  const route = RULEBOOK.routes[category] ?? "General Support";
 
   // Priority
   const urgentHits = findMatches(text, URGENT_KEYWORDS);

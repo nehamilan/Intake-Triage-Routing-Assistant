@@ -1,4 +1,4 @@
-import { RULEBOOK, type Priority } from "./rulebook";
+import { RULEBOOK, type Priority, type Rulebook } from "./rulebook";
 import type { Decision } from "./mock-classify";
 import { type Attachment, textMentionsAttachments } from "./attachments";
 import { detectEmbargo, type EmbargoDetection } from "./embargo";
@@ -9,6 +9,7 @@ export type TriageStatus =
   | "escalated_attachment_mismatch"
   | "escalated_guardrail"
   | "escalated_privacy_incident"
+  | "escalated_fraud"
   | "escalated_missing_embargo_date"
   | "escalated_parse_failure";
 
@@ -22,38 +23,26 @@ export interface RuleResult {
 
 const HUMAN_REVIEW = "Human Review Queue";
 
-const ACCESS_TRIGGERS = ["access", "restricted", "sensitive"];
-const APPROVAL_TERMS = ["approval", "ethics", "irb", "clearance"];
-const PRIVACY_TRIGGERS = [
-  "breach",
-  "exposed",
-  "accidentally uploaded",
-  "patient names",
-  "personal data",
-];
-
-const contains = (text: string, terms: string[]) =>
+const contains = (text: string, terms: readonly string[]) =>
   terms.some((t) => text.includes(t));
 
 export function applyRules(
   decision: Decision,
   requestText: string,
   attachments: readonly Attachment[] = [],
+  rulebook: Rulebook = RULEBOOK,
 ): RuleResult {
   const text = requestText.toLowerCase();
   const flags: string[] = [];
-  const embargo = detectEmbargo(requestText);
+  // Embargo detection is only meaningful for verticals that opt in.
+  const embargo: EmbargoDetection = rulebook.guardrails.embargoRequiresDate
+    ? detectEmbargo(requestText)
+    : { mentioned: false, reason: null, rawPhrase: null, date: null };
 
   let finalRoute = decision.route;
   let status: TriageStatus = "auto_routed";
   let priority: Priority = decision.priority;
 
-  // Parse-failure gate — runs FIRST. When the model output was unparseable or
-  // schema-invalid, the decision's category/priority/route are placeholders
-  // and cannot be trusted for auto-routing. Force human review and skip the
-  // model-derived guardrails (they'd be gating on meaningless values). The
-  // text-driven privacy guardrail below still runs, since it doesn't depend
-  // on model output.
   if (decision.parseFailed) {
     finalRoute = HUMAN_REVIEW;
     status = "escalated_parse_failure";
@@ -61,19 +50,16 @@ export function applyRules(
   }
 
   if (!decision.parseFailed) {
-    // Confidence gate — softest override.
-    if (decision.confidence < RULEBOOK.confidenceThreshold) {
+    if (decision.confidence < rulebook.confidenceThreshold) {
       finalRoute = HUMAN_REVIEW;
       status = "escalated_low_confidence";
       flags.push(
         `Confidence ${(decision.confidence * 100).toFixed(0)}% is below threshold ${(
-          RULEBOOK.confidenceThreshold * 100
+          rulebook.confidenceThreshold * 100
         ).toFixed(0)}% — human review required.`,
       );
     }
 
-    // Attachment mismatch — the text references attachments but none arrived.
-    // A reviewer needs to chase the missing files before any routing is safe.
     if (textMentionsAttachments(requestText) && attachments.length === 0) {
       finalRoute = HUMAN_REVIEW;
       status = "escalated_attachment_mismatch";
@@ -82,10 +68,12 @@ export function applyRules(
       );
     }
 
-    // Guardrail C — embargo mentioned but no exact release date.
-    // Curators can't schedule release without a YYYY-MM-DD; anything vaguer must
-    // be confirmed with the requester before the deposit is routed.
-    if (embargo.mentioned && embargo.reason !== "exact") {
+    // Guardrail — embargo mentioned but no exact release date (research only).
+    if (
+      rulebook.guardrails.embargoRequiresDate &&
+      embargo.mentioned &&
+      embargo.reason !== "exact"
+    ) {
       finalRoute = HUMAN_REVIEW;
       status = "escalated_missing_embargo_date";
       const detail = embargo.rawPhrase ? ` ("${embargo.rawPhrase}")` : "";
@@ -94,30 +82,48 @@ export function applyRules(
       );
     }
 
-    // Guardrail A — restricted-data access without stated approval.
-    const looksLikeAccess =
-      decision.category === "restricted_data_access" ||
-      contains(text, ACCESS_TRIGGERS);
-    const mentionsApproval = contains(text, APPROVAL_TERMS);
-    if (looksLikeAccess && !mentionsApproval) {
-      finalRoute = HUMAN_REVIEW;
-      status = "escalated_guardrail";
-      flags.push(
-        "Access request without stated approval — must not be auto-granted.",
-      );
+    // Guardrail A — restricted-data access without stated approval (research).
+    const access = rulebook.guardrails.accessRequiresApproval;
+    if (access) {
+      const looksLikeAccess =
+        decision.category === access.category ||
+        contains(text, access.textTriggers);
+      const mentionsApproval = contains(text, access.approvalTerms);
+      if (looksLikeAccess && !mentionsApproval) {
+        finalRoute = HUMAN_REVIEW;
+        status = "escalated_guardrail";
+        flags.push(
+          "Access request without stated approval — must not be auto-granted.",
+        );
+      }
     }
   }
 
-  // Guardrail B — suspected privacy incident (highest severity). Runs even on
-  // parse failure because it's driven purely by the request text. Bumps
-  // priority and adds the flag, but does NOT overwrite an existing
-  // parse-failure status — that's a more severe operational signal.
-  if (contains(text, PRIVACY_TRIGGERS)) {
+  // Guardrail — suspected privacy incident (research; highest severity).
+  const privacy = rulebook.guardrails.privacyIncident;
+  if (privacy && contains(text, privacy.triggers)) {
     finalRoute = HUMAN_REVIEW;
     priority = "urgent";
     flags.push("Suspected privacy incident — mandatory human handling.");
     if (status !== "escalated_parse_failure") {
       status = "escalated_privacy_incident";
+    }
+  }
+
+  // Guardrail — suspected fraud (banking; highest severity).
+  const fraud = rulebook.guardrails.fraud;
+  if (
+    fraud &&
+    (contains(text, fraud.triggers) || decision.category === fraud.category)
+  ) {
+    finalRoute = HUMAN_REVIEW;
+    priority = "urgent";
+    flags.push("Suspected fraud — mandatory human handling.");
+    if (
+      status !== "escalated_parse_failure" &&
+      status !== "escalated_privacy_incident"
+    ) {
+      status = "escalated_fraud";
     }
   }
 
@@ -130,6 +136,7 @@ export const STATUS_LABELS: Record<TriageStatus, string> = {
   escalated_attachment_mismatch: "Escalated — missing attachments",
   escalated_guardrail: "Escalated — guardrail",
   escalated_privacy_incident: "Escalated — privacy incident",
+  escalated_fraud: "Escalated — suspected fraud",
   escalated_missing_embargo_date: "Escalated — embargo date missing",
   escalated_parse_failure: "Escalated — model output invalid",
 };

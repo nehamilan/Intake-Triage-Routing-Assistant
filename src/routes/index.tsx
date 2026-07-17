@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   RULEBOOK,
   CATEGORY_LABELS,
   type Category,
   type Priority,
 } from "@/lib/rulebook";
+import { useRulebook } from "@/hooks/use-rulebook";
 import { type Decision } from "@/lib/mock-classify";
 import {
   applyRules,
@@ -68,10 +70,17 @@ function RouteComponent() {
 
 // ---------- Constants ----------
 
-
-// All routes selectable in the Override control.
+// Routes selectable in the Override control. Combines every configured
+// vertical's routes so the dropdown covers whichever rulebook is active.
+import { RULEBOOKS } from "@/lib/rulebook";
 const AVAILABLE_ROUTES: readonly string[] = [
-  ...Array.from(new Set(Object.values(RULEBOOK.routes))),
+  ...Array.from(
+    new Set(
+      Object.values(RULEBOOKS).flatMap((rb) =>
+        Object.values(rb.routes).filter(Boolean) as string[],
+      ),
+    ),
+  ),
   "Human Review Queue",
 ];
 
@@ -120,6 +129,9 @@ function computeChanges(
 // ---------- Root component ----------
 
 function Index({ headerControls }: { headerControls?: React.ReactNode }) {
+  const { rulebook } = useRulebook();
+  void rulebook;
+
   const [requestText, setRequestText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [activeTab, setActiveTab] = useState<"triage" | "queue">("triage");
@@ -454,7 +466,7 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
         d = {
           category: "general_inquiry",
           priority: "low",
-          route: RULEBOOK.routes.general_inquiry,
+          route: RULEBOOK.routes.general_inquiry ?? "General Support",
           reason: `Classifier error — routed to human review. (${message})`,
           confidence: 0,
         };
@@ -1045,6 +1057,10 @@ const STATUS_STYLES: Record<
   escalated_privacy_incident: {
     badge: "bg-purple-50 border-purple-300 text-purple-800",
     dot: "bg-purple-600",
+  },
+  escalated_fraud: {
+    badge: "bg-red-50 border-red-300 text-red-800",
+    dot: "bg-red-600",
   },
   escalated_missing_embargo_date: {
     badge: "bg-purple-50 border-purple-300 text-purple-800",

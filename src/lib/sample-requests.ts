@@ -10,11 +10,14 @@
 
 import { mockFile, type Attachment } from "./attachments";
 
+import type { VerticalId } from "./rulebook";
+
 export interface SampleRequest {
   id: string;
   label: string;
   text: string;
   attachments: Attachment[];
+  vertical?: VerticalId; // defaults to "research" when omitted
 }
 
 export const SAMPLE_REQUESTS: readonly SampleRequest[] = [
@@ -404,4 +407,34 @@ export const SAMPLE_REQUESTS: readonly SampleRequest[] = [
       ),
     ],
   },
+  // -- Banking vertical samples --
+  {
+    id: "bank-fraud",
+    label: "Fraud — unauthorized charge",
+    text: "There's a $840 unauthorized charge on my debit card from a merchant I don't recognize. I think my card was stolen or someone got my details through phishing. Please freeze the account and open a fraud investigation immediately.",
+    attachments: [],
+    vertical: "banking",
+  },
+  {
+    id: "bank-billing",
+    label: "Billing dispute — duplicate fee",
+    text: "I was charged the monthly account maintenance fee twice this month ($12 each). Please review my statement and refund the duplicate charge.",
+    attachments: [],
+    vertical: "banking",
+  },
+  {
+    id: "bank-access",
+    label: "Account access — locked out",
+    text: "I can't sign in to online banking after resetting my password. The app keeps saying my account is locked. Can you unlock it and confirm what to do next?",
+    attachments: [],
+    vertical: "banking",
+  },
+  {
+    id: "bank-general",
+    label: "General inquiry — branch hours",
+    text: "Hi, what are the Saturday hours at the downtown branch, and do you offer notary services on weekends?",
+    attachments: [],
+    vertical: "banking",
+  },
 ];
+

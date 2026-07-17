@@ -16,21 +16,13 @@ import { z } from "zod";
 
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import {
-  RULEBOOK,
+  RULEBOOKS,
   type Category,
   type Priority,
   type Rulebook,
+  type VerticalId,
 } from "./rulebook";
 import type { Decision } from "./mock-classify";
-
-// Wire-format we ask the model to produce. `category` is validated as an enum
-// against the current rulebook so any hallucinated value is rejected server-side.
-const ClassificationSchema = z.object({
-  category: z.enum(RULEBOOK.categories as unknown as [Category, ...Category[]]),
-  priority: z.enum(RULEBOOK.priorities as unknown as [Priority, ...Priority[]]),
-  reason: z.string().min(1).max(400),
-  confidence: z.number().min(0).max(1),
-});
 
 const AttachmentMetaSchema = z.object({
   filename: z.string().min(1).max(300),
@@ -41,9 +33,21 @@ const AttachmentMetaSchema = z.object({
 const InputSchema = z.object({
   requestText: z.string().min(1).max(8000),
   attachments: z.array(AttachmentMetaSchema).max(50).optional().default([]),
+  vertical: z.enum(["research", "banking"]).optional().default("research"),
 });
 
 type AttachmentMeta = z.infer<typeof AttachmentMetaSchema>;
+
+// Wire-format we ask the model to produce. `category` is validated as an enum
+// against the ACTIVE rulebook so any hallucinated value is rejected server-side.
+function makeClassificationSchema(rb: Rulebook) {
+  return z.object({
+    category: z.enum(rb.categories as unknown as [Category, ...Category[]]),
+    priority: z.enum(rb.priorities as unknown as [Priority, ...Priority[]]),
+    reason: z.string().min(1).max(400),
+    confidence: z.number().min(0).max(1),
+  });
+}
 
 function renderAttachments(atts: readonly AttachmentMeta[]): string {
   if (atts.length === 0) return "Attachments: (none)";
@@ -102,11 +106,14 @@ function buildSystemPrompt(rb: Rulebook): string {
  * category/priority/route are placeholders — `applyRules` sees
  * `parseFailed: true` and routes the item to Human Review regardless.
  */
-function parseFailureDecision(): Decision {
+function parseFailureDecision(rb: Rulebook): Decision {
+  const fallbackCategory = (rb.categories.includes("general_inquiry")
+    ? "general_inquiry"
+    : rb.categories[0]) as Category;
   return {
-    category: "general_inquiry",
+    category: fallbackCategory,
     priority: "normal",
-    route: RULEBOOK.routes.general_inquiry,
+    route: rb.routes[fallbackCategory] ?? "General Support",
     reason: "Model output invalid — routed to human review.",
     confidence: 0,
     parseFailed: true,
@@ -122,43 +129,22 @@ function parseFailureDecision(): Decision {
 // client. Even if the LLM call succeeds with a confident-but-wrong answer,
 // or fails entirely, these text-driven patterns guarantee the riskiest
 // signals still land on a human reviewer.
-//
-// Two patterns are handled here:
-//   1. Privacy incident — short-circuits the model entirely. We do not want
-//      to spend a model call, add latency, or introduce any chance of a
-//      benign-looking classification on a suspected breach.
-//   2. Restricted-access-without-approval — we still call the model (a
-//      curator wants its category/reason), but the guardrail escalation is
-//      enforced downstream in `applyRules` regardless of what the model
-//      says. This function only records the pre-check hit for logs.
 // ---------------------------------------------------------------------------
-
-const PRIVACY_TRIGGERS = [
-  "breach",
-  "exposed",
-  "accidentally uploaded",
-  "patient names",
-  "personal data",
-];
-const ACCESS_TRIGGERS = ["access", "restricted", "sensitive"];
-const APPROVAL_TERMS = ["approval", "ethics", "irb", "clearance"];
 
 const containsAny = (text: string, terms: readonly string[]) =>
   terms.some((t) => text.includes(t));
 
 /**
- * Short-circuit Decision for a suspected privacy incident. Category is set
- * to `restricted_data_access` (the safest cell in the rulebook) purely so
- * the UI has something coherent to show; `applyRules` will overwrite the
- * route to Human Review Queue and stamp the privacy-incident status.
+ * Short-circuit Decision for a suspected privacy/fraud incident. Category is
+ * a rulebook-appropriate high-severity fallback; `applyRules` will overwrite
+ * the route to Human Review Queue and stamp the correct escalated status.
  */
-function privacyIncidentDecision(): Decision {
+function incidentDecision(rb: Rulebook, category: Category, reason: string): Decision {
   return {
-    category: "restricted_data_access",
+    category,
     priority: "urgent",
-    route: RULEBOOK.routes.restricted_data_access,
-    reason:
-      "Pre-check: request text matches privacy-incident patterns. Model skipped; escalated to human review.",
+    route: rb.routes[category] ?? "Human Review Queue",
+    reason,
     confidence: 1,
   };
 }
@@ -167,8 +153,6 @@ export const classifyRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data, context }): Promise<Decision> => {
-    // Authorization: only signed-in "agent" users may classify. Viewers and
-    // unauthenticated callers are rejected before any model call happens.
     const { data: isAgent, error: roleErr } = await context.supabase.rpc(
       "has_role",
       { _user_id: context.userId, _role: "agent" },
@@ -177,31 +161,51 @@ export const classifyRequest = createServerFn({ method: "POST" })
       throw new Error("Forbidden: agent role required to classify requests.");
     }
 
+    const vertical = (data.vertical ?? "research") as VerticalId;
+    const rb = RULEBOOKS[vertical];
     const text = data.requestText.toLowerCase();
 
-    // Pre-check #1: privacy incident. Short-circuit — no model call.
-    if (containsAny(text, PRIVACY_TRIGGERS)) {
-      console.info(
-        "[classifyRequest] Pre-check hit: privacy incident. Skipping model.",
+    // Pre-check #1: privacy incident (research). Short-circuit — no model call.
+    const privacyTriggers = rb.guardrails.privacyIncident?.triggers ?? [];
+    if (privacyTriggers.length > 0 && containsAny(text, privacyTriggers)) {
+      console.info("[classifyRequest] Pre-check hit: privacy incident. Skipping model.");
+      const cat = (rb.categories.includes("restricted_data_access")
+        ? "restricted_data_access"
+        : rb.categories[0]) as Category;
+      return incidentDecision(
+        rb,
+        cat,
+        "Pre-check: request text matches privacy-incident patterns. Model skipped; escalated to human review.",
       );
-      return privacyIncidentDecision();
     }
 
-    // Pre-check #2: restricted-access-without-approval. Record for logs; the
-    // hard guardrail is enforced deterministically in `applyRules` and does
-    // not rely on the model's category or confidence.
+    // Pre-check #1b: fraud incident (banking). Short-circuit — no model call.
+    const fraudTriggers = rb.guardrails.fraud?.triggers ?? [];
+    if (fraudTriggers.length > 0 && containsAny(text, fraudTriggers)) {
+      console.info("[classifyRequest] Pre-check hit: suspected fraud. Skipping model.");
+      const cat = (rb.guardrails.fraud?.category ?? rb.categories[0]) as Category;
+      return incidentDecision(
+        rb,
+        cat,
+        "Pre-check: request text matches fraud patterns. Model skipped; escalated to human review.",
+      );
+    }
+
+    // Pre-check #2: restricted-access-without-approval (research). Logged;
+    // deterministic escalation is enforced downstream in `applyRules`.
+    const accessCfg = rb.guardrails.accessRequiresApproval;
     if (
-      containsAny(text, ACCESS_TRIGGERS) &&
-      !containsAny(text, APPROVAL_TERMS)
+      accessCfg &&
+      containsAny(text, accessCfg.textTriggers) &&
+      !containsAny(text, accessCfg.approvalTerms)
     ) {
       console.info(
-        "[classifyRequest] Pre-check hit: restricted access without stated approval. Calling model; guardrail will force escalation.",
+        "[classifyRequest] Pre-check hit: restricted access without stated approval.",
       );
     }
 
     const key = process.env.LOVABLE_API_KEY;
     if (!key) {
-      // Operator misconfiguration, not a model failure — surface as an error.
       throw new Error(
         "LOVABLE_API_KEY is not configured on the server. Cannot classify.",
       );
@@ -222,40 +226,37 @@ export const classifyRequest = createServerFn({ method: "POST" })
       "Return the JSON classification now.",
     ].join("\n");
 
+    const ClassificationSchema = makeClassificationSchema(rb);
+
     try {
       const { output } = await generateText({
         model,
-        system: buildSystemPrompt(RULEBOOK),
+        system: buildSystemPrompt(rb),
         prompt: userPrompt,
         output: Output.object({ schema: ClassificationSchema }),
       });
 
-      // Defensive: even though Zod enforced the enum, verify the rulebook
-      // knows this category before trusting its derived route. If the schema
-      // is ever loosened, a hallucinated category still fails safe here.
-      const category = output.category as Category;
-      const route = RULEBOOK.routes[category];
+      const parsed = output as z.infer<typeof ClassificationSchema>;
+      const category = parsed.category as Category;
+      const route = rb.routes[category];
       if (!route) {
         console.error(
           "[classifyRequest] Model returned unknown category:",
-          output.category,
+          parsed.category,
         );
-        return parseFailureDecision();
+        return parseFailureDecision(rb);
       }
 
       return {
         category,
-        priority: output.priority as Priority,
+        priority: parsed.priority as Priority,
         route,
-        reason: output.reason.trim(),
-        confidence: Math.max(0, Math.min(1, output.confidence)),
+        reason: parsed.reason.trim(),
+        confidence: Math.max(0, Math.min(1, parsed.confidence)),
       };
     } catch (err) {
-      // NoObjectGeneratedError, schema validation failures, JSON parse errors,
-      // and transient gateway errors all funnel here. We never throw — the
-      // whole point of this hardening pass is that a broken model response
-      // becomes a fail-safe escalation, not a crashed request.
       console.error("[classifyRequest] Model output invalid:", err);
-      return parseFailureDecision();
+      return parseFailureDecision(rb);
     }
   });
+
