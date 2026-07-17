@@ -406,6 +406,7 @@ export const SAMPLE_REQUESTS: readonly SampleRequest[] = [
         "Index of files bundled for the embargoed deposit.",
       ),
     ],
+  },
   // -- Banking vertical samples --
   {
     id: "bank-fraud",
