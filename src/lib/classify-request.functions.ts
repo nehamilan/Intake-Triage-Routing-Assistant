@@ -49,8 +49,6 @@ function makeClassificationSchema(rb: Rulebook) {
   });
 }
 
-type AttachmentMeta = z.infer<typeof AttachmentMetaSchema>;
-
 function renderAttachments(atts: readonly AttachmentMeta[]): string {
   if (atts.length === 0) return "Attachments: (none)";
   const lines = atts
