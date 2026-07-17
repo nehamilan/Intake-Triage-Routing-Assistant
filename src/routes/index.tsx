@@ -1046,6 +1046,10 @@ const STATUS_STYLES: Record<
     badge: "bg-purple-50 border-purple-300 text-purple-800",
     dot: "bg-purple-600",
   },
+  escalated_fraud: {
+    badge: "bg-red-50 border-red-300 text-red-800",
+    dot: "bg-red-600",
+  },
   escalated_missing_embargo_date: {
     badge: "bg-purple-50 border-purple-300 text-purple-800",
     dot: "bg-purple-600",
