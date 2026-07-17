@@ -16,21 +16,13 @@ import { z } from "zod";
 
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import {
-  RULEBOOK,
+  RULEBOOKS,
   type Category,
   type Priority,
   type Rulebook,
+  type VerticalId,
 } from "./rulebook";
 import type { Decision } from "./mock-classify";
-
-// Wire-format we ask the model to produce. `category` is validated as an enum
-// against the current rulebook so any hallucinated value is rejected server-side.
-const ClassificationSchema = z.object({
-  category: z.enum(RULEBOOK.categories as unknown as [Category, ...Category[]]),
-  priority: z.enum(RULEBOOK.priorities as unknown as [Priority, ...Priority[]]),
-  reason: z.string().min(1).max(400),
-  confidence: z.number().min(0).max(1),
-});
 
 const AttachmentMetaSchema = z.object({
   filename: z.string().min(1).max(300),
@@ -41,7 +33,21 @@ const AttachmentMetaSchema = z.object({
 const InputSchema = z.object({
   requestText: z.string().min(1).max(8000),
   attachments: z.array(AttachmentMetaSchema).max(50).optional().default([]),
+  vertical: z.enum(["research", "banking"]).optional().default("research"),
 });
+
+type AttachmentMeta = z.infer<typeof AttachmentMetaSchema>;
+
+// Wire-format we ask the model to produce. `category` is validated as an enum
+// against the ACTIVE rulebook so any hallucinated value is rejected server-side.
+function makeClassificationSchema(rb: Rulebook) {
+  return z.object({
+    category: z.enum(rb.categories as unknown as [Category, ...Category[]]),
+    priority: z.enum(rb.priorities as unknown as [Priority, ...Priority[]]),
+    reason: z.string().min(1).max(400),
+    confidence: z.number().min(0).max(1),
+  });
+}
 
 type AttachmentMeta = z.infer<typeof AttachmentMetaSchema>;
 
