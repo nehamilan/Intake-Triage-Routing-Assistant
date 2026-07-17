@@ -454,7 +454,7 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
         d = {
           category: "general_inquiry",
           priority: "low",
-          route: RULEBOOK.routes.general_inquiry,
+          route: RULEBOOK.routes.general_inquiry ?? "General Support",
           reason: `Classifier error — routed to human review. (${message})`,
           confidence: 0,
         };
