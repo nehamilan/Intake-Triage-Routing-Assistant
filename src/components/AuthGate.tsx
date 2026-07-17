@@ -21,6 +21,8 @@ export function AuthGate({
   viewerView: (props: { header: ReactNode }) => ReactNode;
 }) {
   const { user, role, displayName, loading, signOut } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
+  const { rulebook, verticalId, setVertical, availableVerticals } = useRulebook();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -39,7 +41,37 @@ export function AuthGate({
 
   const name = displayName || user.email || "user";
   const header = (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+      {/* Vertical switcher — swaps the RULEBOOK at runtime. */}
+      <label className="flex items-center gap-1.5">
+        <span className="sr-only">Vertical</span>
+        <select
+          aria-label={`Vertical: ${rulebook.label}`}
+          value={verticalId}
+          onChange={(e) =>
+            setVertical(e.target.value as typeof verticalId)
+          }
+          className="border border-border bg-background px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5 focus:border-foreground focus:outline-none"
+        >
+          {availableVerticals.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {/* Dark-mode toggle. */}
+      <button
+        type="button"
+        onClick={toggleTheme}
+        aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        className="inline-flex h-7 w-7 items-center justify-center border border-border bg-background text-foreground hover:bg-foreground/5"
+      >
+        <span aria-hidden="true" className="text-xs">
+          {theme === "dark" ? "☀" : "☾"}
+        </span>
+      </button>
       <Link
         to="/dashboard"
         className="border border-border bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
