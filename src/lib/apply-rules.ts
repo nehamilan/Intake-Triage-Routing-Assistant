@@ -35,9 +35,9 @@ export function applyRules(
   const text = requestText.toLowerCase();
   const flags: string[] = [];
   // Embargo detection is only meaningful for verticals that opt in.
-  const embargo = rulebook.guardrails.embargoRequiresDate
+  const embargo: EmbargoDetection = rulebook.guardrails.embargoRequiresDate
     ? detectEmbargo(requestText)
-    : { mentioned: false as const, reason: "none", rawPhrase: undefined, date: undefined };
+    : { mentioned: false, reason: null, rawPhrase: null, date: null };
 
   let finalRoute = decision.route;
   let status: TriageStatus = "auto_routed";
