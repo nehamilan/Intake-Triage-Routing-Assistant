@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
+import { useTheme } from "@/hooks/use-theme";
+import { useRulebook } from "@/hooks/use-rulebook";
 import { loadQueue } from "@/lib/queue-db";
 import type { QueueItem } from "@/lib/queue-types";
 import { STATUS_LABELS } from "@/lib/apply-rules";
