@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   RULEBOOK,
   CATEGORY_LABELS,
   type Category,
   type Priority,
 } from "@/lib/rulebook";
+import { useRulebook } from "@/hooks/use-rulebook";
 import { type Decision } from "@/lib/mock-classify";
 import {
   applyRules,
