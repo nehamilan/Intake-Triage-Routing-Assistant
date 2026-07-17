@@ -122,6 +122,18 @@ function computeChanges(
 // ---------- Root component ----------
 
 function Index({ headerControls }: { headerControls?: React.ReactNode }) {
+  const { rulebook, verticalId } = useRulebook();
+  // Routes selectable in the Override control — derived from the active rulebook.
+  const availableRoutes = useMemo(
+    () => [
+      ...Array.from(
+        new Set(Object.values(rulebook.routes).filter(Boolean) as string[]),
+      ),
+      "Human Review Queue",
+    ],
+    [rulebook],
+  );
+
   const [requestText, setRequestText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [activeTab, setActiveTab] = useState<"triage" | "queue">("triage");
