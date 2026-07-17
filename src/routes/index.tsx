@@ -70,12 +70,8 @@ function RouteComponent() {
 
 // ---------- Constants ----------
 
-
-// All routes selectable in the Override control.
-const AVAILABLE_ROUTES: readonly string[] = [
-  ...Array.from(new Set(Object.values(RULEBOOK.routes))),
-  "Human Review Queue",
-];
+// Routes for the Override control are derived per-render from the active
+// rulebook (see `availableRoutes` inside Index).
 
 // Human-readable label helpers used inside the audit timeline. Kept next
 // to the types so any change to the label set updates both diffs and the
