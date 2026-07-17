@@ -10,11 +10,14 @@
 
 import { mockFile, type Attachment } from "./attachments";
 
+import type { VerticalId } from "./rulebook";
+
 export interface SampleRequest {
   id: string;
   label: string;
   text: string;
   attachments: Attachment[];
+  vertical?: VerticalId; // defaults to "research" when omitted
 }
 
 export const SAMPLE_REQUESTS: readonly SampleRequest[] = [
