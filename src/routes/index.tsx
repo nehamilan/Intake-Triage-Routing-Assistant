@@ -70,8 +70,19 @@ function RouteComponent() {
 
 // ---------- Constants ----------
 
-// Routes for the Override control are derived per-render from the active
-// rulebook (see `availableRoutes` inside Index).
+// Routes selectable in the Override control. Combines every configured
+// vertical's routes so the dropdown covers whichever rulebook is active.
+import { RULEBOOKS } from "@/lib/rulebook";
+const AVAILABLE_ROUTES: readonly string[] = [
+  ...Array.from(
+    new Set(
+      Object.values(RULEBOOKS).flatMap((rb) =>
+        Object.values(rb.routes).filter(Boolean) as string[],
+      ),
+    ),
+  ),
+  "Human Review Queue",
+];
 
 // Human-readable label helpers used inside the audit timeline. Kept next
 // to the types so any change to the label set updates both diffs and the
