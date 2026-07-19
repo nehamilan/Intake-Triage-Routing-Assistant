@@ -446,7 +446,15 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
     if (batchProgress) return;
     setClassifyError(null);
     const now = Date.now();
-    const total = SAMPLE_REQUESTS.length;
+    // Only run samples matching the active vertical (defaults to "research").
+    const samples = SAMPLE_REQUESTS.filter(
+      (s) => (s.vertical ?? "research") === verticalId,
+    );
+    const total = samples.length;
+    if (total === 0) {
+      toast.info("No sample requests for this vertical.");
+      return;
+    }
     setBatchProgress({ done: 0, total });
     // Switch to the queue immediately so the reviewer watches rows land as
     // each classification resolves, rather than staring at a spinner.
@@ -456,14 +464,15 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
     // per-second rate limits from the gateway. Failures for a single sample
     // don't abort the batch — they surface as a low-confidence placeholder
     // that lands in Human Review through the guardrails.
-    for (let i = 0; i < SAMPLE_REQUESTS.length; i++) {
-      const s = SAMPLE_REQUESTS[i];
+    for (let i = 0; i < samples.length; i++) {
+      const s = samples[i];
       let d: Decision;
       try {
         d = await classify({
           data: {
             requestText: s.text,
             attachments: attachmentMeta(s.attachments),
+            vertical: verticalId,
           },
         });
       } catch (err) {
@@ -471,12 +480,13 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
         d = {
           category: "general_inquiry",
           priority: "low",
-          route: RULEBOOK.routes.general_inquiry ?? "General Support",
+          route: rulebook.routes.general_inquiry ?? "General Support",
           reason: `Classifier error — routed to human review. (${message})`,
           confidence: 0,
         };
       }
-      const r = applyRules(d, s.text, s.attachments);
+      const r = applyRules(d, s.text, s.attachments, rulebook);
+
       const final: FinalDecision = {
         category: d.category,
         priority: r.priority,
