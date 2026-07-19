@@ -237,10 +237,15 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
     setIsClassifying(true);
     try {
       const d = await classify({
-        data: { requestText: text, attachments: attachmentMeta(attachments) },
+        data: {
+          requestText: text,
+          attachments: attachmentMeta(attachments),
+          vertical: verticalId,
+        },
       });
       setDecision(d);
-      setRuling(applyRules(d, text, attachments));
+      setRuling(applyRules(d, text, attachments, rulebook));
+
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setClassifyError(message);
