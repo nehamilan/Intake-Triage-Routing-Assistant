@@ -2533,3 +2533,55 @@ function AttachmentThumb({ attachment }: { attachment: Attachment }) {
     </div>
   );
 }
+
+// ---------- About / how it works ----------
+
+function AboutPanel() {
+  const [open, setOpen] = useState(false);
+  return (
+    <section
+      aria-label="About this system"
+      className="mt-10 border border-dashed border-border bg-card/40"
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between px-4 py-3 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
+      >
+        <span>About · how it works</span>
+        <span aria-hidden="true">{open ? "−" : "+"}</span>
+      </button>
+      {open ? (
+        <div className="space-y-3 border-t border-dashed border-border px-4 py-4 font-serif text-sm leading-relaxed text-foreground">
+          <p>
+            Every intake flows through a{" "}
+            <span className="font-semibold">
+              deterministic guardrails → LLM classifier → deterministic
+              guardrails
+            </span>{" "}
+            sandwich. The riskiest signals (privacy incidents, restricted-data
+            access, fraud) are caught by pure code — not by the model — so
+            safety-critical routing never depends on a prompt.
+          </p>
+          <p>
+            The LLM proposes a category, priority, route, one-sentence reason
+            and a confidence score. If confidence falls below the rulebook
+            threshold, or if any guardrail fires, the request is routed to the
+            Human Review Queue rather than auto-actioned.
+          </p>
+          <p>
+            A human reviewer accepts or overrides every decision. Overrides
+            append a new revision to the audit log — the previous version is
+            preserved, never mutated — with reviewer, timestamp, diff and
+            reason.
+          </p>
+          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            Rulebook is data, not code. Swap the vertical in the header to
+            reconfigure categories, routes and guardrails at runtime.
+          </p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
