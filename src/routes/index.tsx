@@ -383,6 +383,10 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
       }
       setQueueError(null);
       setProcessedQueue((prev) => [newRow, ...prev]);
+      toast.success(
+        wasOverridden ? "Override saved to queue." : "Decision sent to queue.",
+      );
+
     }
     // Reset the workspace for the next intake. Keep the object URLs alive so
     // the queue entry can still render its previews.
