@@ -937,7 +937,7 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
           <span>Station: Console_01</span>
           <span>
             Vertical: {RULEBOOK.vertical.replace(/_/g, " ")} · Threshold:{" "}
-            {RULEBOOK.confidenceThreshold.toFixed(2)}
+            {activeRulebook.confidenceThreshold.toFixed(2)}
           </span>
           <span>
             Requests: {currentQueue.length} · Escalated: {escalatedCount} ·
@@ -1351,7 +1351,7 @@ function DecisionCard({
             </div>
             {belowThreshold ? (
               <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-red-700">
-                Below threshold ({RULEBOOK.confidenceThreshold.toFixed(2)}) — flag for review.
+                Below threshold ({activeRulebook.confidenceThreshold.toFixed(2)}) — flag for review.
               </p>
             ) : null}
           </>
@@ -1435,7 +1435,7 @@ function DecisionCard({
                 onChange={(e) => setDraftCategory(e.target.value as Category)}
                 className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
               >
-                {RULEBOOK.categories.map((c) => (
+                {activeRulebook.categories.map((c) => (
                   <option key={c} value={c}>
                     {CATEGORY_LABELS[c]}
                   </option>
@@ -1449,7 +1449,7 @@ function DecisionCard({
                 onChange={(e) => setDraftPriority(e.target.value as Priority)}
                 className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
               >
-                {RULEBOOK.priorities.map((p) => (
+                {activeRulebook.priorities.map((p) => (
                   <option key={p} value={p}>
                     {p.charAt(0).toUpperCase() + p.slice(1)}
                   </option>
