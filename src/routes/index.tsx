@@ -697,6 +697,17 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
                       id="request-textarea"
                       value={requestText}
                       onChange={(e) => setRequestText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (
+                          (e.metaKey || e.ctrlKey) &&
+                          e.key === "Enter" &&
+                          !reviewingItem
+                        ) {
+                          e.preventDefault();
+                          handleTriage();
+                        }
+                      }}
+
                       rows={12}
                       readOnly={reviewingItem !== null}
                       placeholder="Paste an incoming request here — an email about accessing a restricted dataset, a deposit question, a licensing query, or a broken download link."
