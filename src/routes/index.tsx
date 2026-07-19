@@ -1140,7 +1140,9 @@ function DecisionCard({
 
   const pri = PRIORITY_STYLES[ruling.priority];
   const pct = Math.round(decision.confidence * 100);
-  const belowThreshold = decision.confidence < RULEBOOK.confidenceThreshold;
+  const { rulebook: activeRulebook } = useRulebook();
+  const belowThreshold = decision.confidence < activeRulebook.confidenceThreshold;
+
   const statusStyle = STATUS_STYLES[ruling.status];
   const routeOverridden = ruling.finalRoute !== decision.route;
   const reviewerReady = reviewer.trim().length > 0;
