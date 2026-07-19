@@ -936,8 +936,9 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
         <footer className="mt-12 flex flex-col gap-2 border-t border-border pt-6 font-mono text-[10px] uppercase tracking-widest text-muted-foreground sm:flex-row sm:justify-between">
           <span>Station: Console_01</span>
           <span>
-            Vertical: {RULEBOOK.vertical.replace(/_/g, " ")} · Threshold:{" "}
-            {activeRulebook.confidenceThreshold.toFixed(2)}
+            Vertical: {rulebook.vertical.replace(/_/g, " ")} · Threshold:{" "}
+            {rulebook.confidenceThreshold.toFixed(2)}
+
           </span>
           <span>
             Requests: {currentQueue.length} · Escalated: {escalatedCount} ·
