@@ -343,9 +343,11 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
           q.id === prev.id ? { ...q, supersededById: newRow.id } : q,
         ),
       ]);
+      toast.success(`Revision v${newRow.revision} saved.`);
       setReviewingId(null);
       setIsRevising(false);
       setActiveTab("queue");
+
     } else {
       // v1: diff vs the AI's proposal so that an override on first pass still
       // shows what changed relative to the model's suggestion.
