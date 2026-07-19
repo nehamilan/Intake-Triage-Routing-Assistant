@@ -129,8 +129,8 @@ function computeChanges(
 // ---------- Root component ----------
 
 function Index({ headerControls }: { headerControls?: React.ReactNode }) {
-  const { rulebook } = useRulebook();
-  void rulebook;
+  const { rulebook, verticalId } = useRulebook();
+
 
   const [requestText, setRequestText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -237,10 +237,15 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
     setIsClassifying(true);
     try {
       const d = await classify({
-        data: { requestText: text, attachments: attachmentMeta(attachments) },
+        data: {
+          requestText: text,
+          attachments: attachmentMeta(attachments),
+          vertical: verticalId,
+        },
       });
       setDecision(d);
-      setRuling(applyRules(d, text, attachments));
+      setRuling(applyRules(d, text, attachments, rulebook));
+
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setClassifyError(message);
@@ -338,9 +343,11 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
           q.id === prev.id ? { ...q, supersededById: newRow.id } : q,
         ),
       ]);
+      toast.success(`Revision v${newRow.revision} saved.`);
       setReviewingId(null);
       setIsRevising(false);
       setActiveTab("queue");
+
     } else {
       // v1: diff vs the AI's proposal so that an override on first pass still
       // shows what changed relative to the model's suggestion.
@@ -376,6 +383,10 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
       }
       setQueueError(null);
       setProcessedQueue((prev) => [newRow, ...prev]);
+      toast.success(
+        wasOverridden ? "Override saved to queue." : "Decision sent to queue.",
+      );
+
     }
     // Reset the workspace for the next intake. Keep the object URLs alive so
     // the queue entry can still render its previews.
@@ -441,7 +452,15 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
     if (batchProgress) return;
     setClassifyError(null);
     const now = Date.now();
-    const total = SAMPLE_REQUESTS.length;
+    // Only run samples matching the active vertical (defaults to "research").
+    const samples = SAMPLE_REQUESTS.filter(
+      (s) => (s.vertical ?? "research") === verticalId,
+    );
+    const total = samples.length;
+    if (total === 0) {
+      toast.info("No sample requests for this vertical.");
+      return;
+    }
     setBatchProgress({ done: 0, total });
     // Switch to the queue immediately so the reviewer watches rows land as
     // each classification resolves, rather than staring at a spinner.
@@ -451,14 +470,15 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
     // per-second rate limits from the gateway. Failures for a single sample
     // don't abort the batch — they surface as a low-confidence placeholder
     // that lands in Human Review through the guardrails.
-    for (let i = 0; i < SAMPLE_REQUESTS.length; i++) {
-      const s = SAMPLE_REQUESTS[i];
+    for (let i = 0; i < samples.length; i++) {
+      const s = samples[i];
       let d: Decision;
       try {
         d = await classify({
           data: {
             requestText: s.text,
             attachments: attachmentMeta(s.attachments),
+            vertical: verticalId,
           },
         });
       } catch (err) {
@@ -466,12 +486,13 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
         d = {
           category: "general_inquiry",
           priority: "low",
-          route: RULEBOOK.routes.general_inquiry ?? "General Support",
+          route: rulebook.routes.general_inquiry ?? "General Support",
           reason: `Classifier error — routed to human review. (${message})`,
           confidence: 0,
         };
       }
-      const r = applyRules(d, s.text, s.attachments);
+      const r = applyRules(d, s.text, s.attachments, rulebook);
+
       const final: FinalDecision = {
         category: d.category,
         priority: r.priority,
@@ -676,6 +697,17 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
                       id="request-textarea"
                       value={requestText}
                       onChange={(e) => setRequestText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (
+                          (e.metaKey || e.ctrlKey) &&
+                          e.key === "Enter" &&
+                          !reviewingItem
+                        ) {
+                          e.preventDefault();
+                          handleTriage();
+                        }
+                      }}
+
                       rows={12}
                       readOnly={reviewingItem !== null}
                       placeholder="Paste an incoming request here — an email about accessing a restricted dataset, a deposit question, a licensing query, or a broken download link."
@@ -766,29 +798,37 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
                   </div>
                 ) : null}
 
-                {/* Sample batch controls */}
-                {reviewingItem ? null : (
+                {/* Sample batch controls — filtered to the active vertical. */}
+                {reviewingItem ? null : (() => {
+                  const verticalSamples = SAMPLE_REQUESTS.filter(
+                    (s) => (s.vertical ?? "research") === verticalId,
+                  );
+                  return (
                   <div className="border-t border-dashed border-border pt-5">
                     <div className="mb-3 flex items-baseline justify-between gap-3">
                       <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                         Sample Corpus
                       </span>
                       <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                        {SAMPLE_REQUESTS.length} fixtures
+                        {verticalSamples.length} fixtures · {rulebook.label}
                       </span>
                     </div>
                     <p className="mb-3 font-serif text-xs italic text-muted-foreground">
                       Hard-coded intake messages covering every category and
-                      each guardrail case. Load one into the editor, or triage
-                      the whole set at once and inspect the queue.
+                      each guardrail case for the active vertical. Load one
+                      into the editor, or triage the whole set at once.
                     </p>
                     <div className="mb-4 flex flex-col gap-2 sm:flex-row">
                       <select
                         aria-label="Load a sample request"
                         value=""
-                        disabled={isClassifying || batchProgress !== null}
+                        disabled={
+                          isClassifying ||
+                          batchProgress !== null ||
+                          verticalSamples.length === 0
+                        }
                         onChange={(e) => {
-                          const s = SAMPLE_REQUESTS.find(
+                          const s = verticalSamples.find(
                             (x) => x.id === e.target.value,
                           );
                           if (s) handleLoadSample(s.text, [...s.attachments]);
@@ -796,14 +836,17 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
                         className="flex-1 border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none disabled:opacity-50"
                       >
                         <option value="" disabled>
-                          Load sample request…
+                          {verticalSamples.length === 0
+                            ? "No samples for this vertical"
+                            : "Load sample request…"}
                         </option>
-                        {SAMPLE_REQUESTS.map((s) => (
+                        {verticalSamples.map((s) => (
                           <option key={s.id} value={s.id}>
                             {s.label}
                           </option>
                         ))}
                       </select>
+
                       <button
                         type="button"
                         onClick={handleTriageAll}
@@ -821,7 +864,9 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
                       </button>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
+
               </section>
 
               {/* Decision card */}
@@ -910,13 +955,16 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
               queueError={queueError}
             />
           )}
+          <AboutPanel />
         </main>
+
 
         <footer className="mt-12 flex flex-col gap-2 border-t border-border pt-6 font-mono text-[10px] uppercase tracking-widest text-muted-foreground sm:flex-row sm:justify-between">
           <span>Station: Console_01</span>
           <span>
-            Vertical: {RULEBOOK.vertical.replace(/_/g, " ")} · Threshold:{" "}
-            {RULEBOOK.confidenceThreshold.toFixed(2)}
+            Vertical: {rulebook.vertical.replace(/_/g, " ")} · Threshold:{" "}
+            {rulebook.confidenceThreshold.toFixed(2)}
+
           </span>
           <span>
             Requests: {currentQueue.length} · Escalated: {escalatedCount} ·
@@ -1119,7 +1167,9 @@ function DecisionCard({
 
   const pri = PRIORITY_STYLES[ruling.priority];
   const pct = Math.round(decision.confidence * 100);
-  const belowThreshold = decision.confidence < RULEBOOK.confidenceThreshold;
+  const { rulebook: activeRulebook } = useRulebook();
+  const belowThreshold = decision.confidence < activeRulebook.confidenceThreshold;
+
   const statusStyle = STATUS_STYLES[ruling.status];
   const routeOverridden = ruling.finalRoute !== decision.route;
   const reviewerReady = reviewer.trim().length > 0;
@@ -1328,7 +1378,7 @@ function DecisionCard({
             </div>
             {belowThreshold ? (
               <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-red-700">
-                Below threshold ({RULEBOOK.confidenceThreshold.toFixed(2)}) — flag for review.
+                Below threshold ({activeRulebook.confidenceThreshold.toFixed(2)}) — flag for review.
               </p>
             ) : null}
           </>
@@ -1412,7 +1462,7 @@ function DecisionCard({
                 onChange={(e) => setDraftCategory(e.target.value as Category)}
                 className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
               >
-                {RULEBOOK.categories.map((c) => (
+                {activeRulebook.categories.map((c) => (
                   <option key={c} value={c}>
                     {CATEGORY_LABELS[c]}
                   </option>
@@ -1426,7 +1476,7 @@ function DecisionCard({
                 onChange={(e) => setDraftPriority(e.target.value as Priority)}
                 className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
               >
-                {RULEBOOK.priorities.map((p) => (
+                {activeRulebook.priorities.map((p) => (
                   <option key={p} value={p}>
                     {p.charAt(0).toUpperCase() + p.slice(1)}
                   </option>
@@ -2481,5 +2531,57 @@ function AttachmentThumb({ attachment }: { attachment: Attachment }) {
     <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-border bg-muted font-mono text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
       {fileKindLabel(attachment.mimeType).slice(0, 3)}
     </div>
+  );
+}
+
+// ---------- About / how it works ----------
+
+function AboutPanel() {
+  const [open, setOpen] = useState(false);
+  return (
+    <section
+      aria-label="About this system"
+      className="mt-10 border border-dashed border-border bg-card/40"
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between px-4 py-3 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
+      >
+        <span>About · how it works</span>
+        <span aria-hidden="true">{open ? "−" : "+"}</span>
+      </button>
+      {open ? (
+        <div className="space-y-3 border-t border-dashed border-border px-4 py-4 font-serif text-sm leading-relaxed text-foreground">
+          <p>
+            Every intake flows through a{" "}
+            <span className="font-semibold">
+              deterministic guardrails → LLM classifier → deterministic
+              guardrails
+            </span>{" "}
+            sandwich. The riskiest signals (privacy incidents, restricted-data
+            access, fraud) are caught by pure code — not by the model — so
+            safety-critical routing never depends on a prompt.
+          </p>
+          <p>
+            The LLM proposes a category, priority, route, one-sentence reason
+            and a confidence score. If confidence falls below the rulebook
+            threshold, or if any guardrail fires, the request is routed to the
+            Human Review Queue rather than auto-actioned.
+          </p>
+          <p>
+            A human reviewer accepts or overrides every decision. Overrides
+            append a new revision to the audit log — the previous version is
+            preserved, never mutated — with reviewer, timestamp, diff and
+            reason.
+          </p>
+          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            Rulebook is data, not code. Swap the vertical in the header to
+            reconfigure categories, routes and guardrails at runtime.
+          </p>
+        </div>
+      ) : null}
+    </section>
   );
 }
