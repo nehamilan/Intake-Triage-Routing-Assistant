@@ -853,7 +853,9 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
                       </button>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
+
               </section>
 
               {/* Decision card */}
