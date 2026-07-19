@@ -129,8 +129,8 @@ function computeChanges(
 // ---------- Root component ----------
 
 function Index({ headerControls }: { headerControls?: React.ReactNode }) {
-  const { rulebook } = useRulebook();
-  void rulebook;
+  const { rulebook, verticalId } = useRulebook();
+
 
   const [requestText, setRequestText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
