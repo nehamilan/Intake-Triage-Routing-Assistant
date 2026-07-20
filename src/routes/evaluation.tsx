@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { classifyRequest } from "@/lib/classify-request.functions";
 import { applyRules } from "@/lib/apply-rules";
-import { RULEBOOK, CATEGORY_LABELS, type Category } from "@/lib/rulebook";
+import { CATEGORY_LABELS, type Category } from "@/lib/rulebook";
+import { useRulebook } from "@/hooks/use-rulebook";
 
 export const Route = createFileRoute("/evaluation")({
   head: () => ({
