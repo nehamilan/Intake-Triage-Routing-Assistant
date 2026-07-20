@@ -95,6 +95,7 @@ function EvaluationPage() {
   }, [loading, user, navigate]);
 
   const classify = useServerFn(classifyRequest);
+  const { rulebook, verticalId } = useRulebook();
 
   const [rows, setRows] = useState<LabeledRow[] | null>(null);
   const [fileName, setFileName] = useState<string>("");
@@ -168,9 +169,9 @@ function EvaluationPage() {
         const row = rows[i];
         try {
           const decision = await classify({
-            data: { requestText: row.message, attachments: [] },
+            data: { requestText: row.message, attachments: [], vertical: verticalId },
           });
-          const rule = applyRules(decision, row.message, []);
+          const rule = applyRules(decision, row.message, [], rulebook);
           const didEscalate = rule.status !== "auto_routed";
           const escCorrect =
             row.should_escalate === undefined ? null : row.should_escalate === didEscalate;
@@ -213,7 +214,7 @@ function EvaluationPage() {
     }
   }
 
-  const metrics = useMemo(() => computeMetrics(results ?? []), [results]);
+  const metrics = useMemo(() => computeMetrics(results ?? [], rulebook.categories as readonly string[]), [results, rulebook]);
 
   function downloadCsv() {
     if (!results) return;
@@ -447,7 +448,7 @@ interface Metrics {
   categories: string[];
 }
 
-function computeMetrics(results: EvalResult[]): Metrics {
+function computeMetrics(results: EvalResult[], knownCategories: readonly string[]): Metrics {
   const total = results.length;
   if (total === 0) {
     return {
@@ -470,8 +471,8 @@ function computeMetrics(results: EvalResult[]): Metrics {
   const truePos = positives.filter((r) => r.did_escalate).length;
   const escalationRecall = positives.length === 0 ? 0 : truePos / positives.length;
 
-  // Confusion: use union of RULEBOOK + any labels seen (in case CSV has stray).
-  const known = RULEBOOK.categories as readonly string[];
+  // Confusion: union of active rulebook categories + any labels seen (in case CSV has stray).
+  const known = knownCategories;
   const seen = new Set<string>(known);
   for (const r of results) {
     if (r.true_category) seen.add(r.true_category);
