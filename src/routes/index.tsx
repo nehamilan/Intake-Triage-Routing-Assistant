@@ -1462,9 +1462,19 @@ function DecisionCard({
                 onChange={(e) => setDraftCategory(e.target.value as Category)}
                 className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
               >
-                {activeRulebook.categories.map((c) => (
+                {/* Include the current draft category even if it belongs to a
+                    different vertical's rulebook — otherwise a persisted item
+                    from another vertical would render with no matching option,
+                    hiding its true value and blocking reverting to it. */}
+                {Array.from(
+                  new Set<Category>([
+                    draftCategory,
+                    ...activeRulebook.categories,
+                  ]),
+                ).map((c) => (
                   <option key={c} value={c}>
-                    {CATEGORY_LABELS[c]}
+                    {CATEGORY_LABELS[c] ?? c}
+                    {activeRulebook.categories.includes(c) ? "" : " (other vertical)"}
                   </option>
                 ))}
               </select>
@@ -1476,7 +1486,12 @@ function DecisionCard({
                 onChange={(e) => setDraftPriority(e.target.value as Priority)}
                 className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
               >
-                {activeRulebook.priorities.map((p) => (
+                {Array.from(
+                  new Set<Priority>([
+                    draftPriority,
+                    ...activeRulebook.priorities,
+                  ]),
+                ).map((p) => (
                   <option key={p} value={p}>
                     {p.charAt(0).toUpperCase() + p.slice(1)}
                   </option>
