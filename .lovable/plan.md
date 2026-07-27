@@ -1,31 +1,39 @@
-## Plan: Add vertical-portability wording to PRODUCT_ANALYSIS.md
+## Problem
 
-### Goal
-Reinforce that the Intake Triage & Routing Assistant is designed to transfer across regulated intake domains, using the existing research and banking verticals as proof.
+The vertical switcher (Research Data / Banking Complaints) currently only swaps the active *rulebook* used for new triage. It does not scope the Queue, so requests from both verticals appear together regardless of the selection. Root cause: the `requests` table has no `vertical` column, so persisted rows carry no domain tag to filter on.
 
-### Changes
-Make three targeted insertions into `PRODUCT_ANALYSIS.md`:
+## Fix
 
-1. **TL;DR** — Add a bullet stating that the guardrail-sandwich architecture is portable across regulated verticals and that two verticals are already shipped.
-2. **Section 2: The problem** — Add a paragraph explaining that the high-volume-routine / dangerous-tail pattern is common to healthcare, insurance, fraud, and legal intake, and that adaptation is a rulebook change.
-3. **Section 11: What this project is meant to demonstrate** — Add a sixth point proving vertical portability through the two live rulebooks sharing one pipeline.
+Tag every persisted request with its vertical, then scope the Queue (and Dashboard KPIs/charts) to the active vertical.
 
-### Proposed text
+### 1. Database migration
+Add a `vertical` column to `requests`:
+- `vertical text not null default 'research'` (values: `'research' | 'banking'`)
+- Backfill: all existing rows become `'research'` (that's the vertical they were created under before this feature existed).
+- No RLS change needed — existing policies still apply.
 
-**TL;DR insert:**
-> **Portability across regulated verticals.** The same guardrail-sandwich architecture runs two shipped verticals — research-data intake and retail-banking complaints — and new domains (healthcare, insurance, legal intake) can be added by writing a rulebook, not rewriting the pipeline.
+### 2. Persistence (`src/lib/queue-db.ts`)
+- `persistNewRequest(...)` writes `vertical: verticalId` on insert.
+- `loadQueue()` selects the `vertical` field and maps it onto `QueueItem`.
+- `QueueItem` type gains `vertical: VerticalId`.
 
-**Problem section insert:**
-> While the seed vertical is a research data repository, the underlying pattern — high-volume routine intake with a dangerous, low-frequency tail — is common to healthcare patient portals, insurance claims, fraud hotlines, and legal intake. The product is designed so that adapting it to a new regulated vertical is a rulebook change, not an application rewrite.
+### 3. Agent Queue (`src/routes/index.tsx`)
+- Read `verticalId` from `useRulebook()` (already available).
+- Filter `processedQueue` to `item.vertical === verticalId` before computing counters and rendering rows.
+- Empty state copy updates to: *"No requests in the {rulebook.label} queue yet."*
 
-**Conclusion section insert:**
-> 6. **Vertical portability is proven, not claimed.** Two complete rulebooks — research data requests and banking complaints — share one classification pipeline, guardrail layer, and human-review workflow. That is intentional evidence that the safety architecture transfers to other regulated intake contexts.
+### 4. Dashboard (`src/routes/dashboard.tsx`)
+- Same scoping: filter the requests read by active vertical so KPIs, charts, and escalation-reason table reflect the selected domain only.
+- Header line notes: *"Showing {rulebook.label}"*.
 
-### Scope
-- Read-only analysis is complete.
-- No code changes; documentation only.
-- No backend, auth, or UI changes.
+### 5. Evaluation page
+No change — the evaluation runner already uses the active rulebook for classification; results are ephemeral, not persisted.
 
-### Verification
-- Review the rendered `PRODUCT_ANALYSIS.md` to ensure the new text fits the existing tone and structure.
-- Confirm the three sections still flow naturally after insertion.
+## Out of scope
+- No cross-vertical "All" view. If needed later, add an "All verticals" option to the switcher.
+- No migration of historical rows between verticals — everything pre-existing stays as `research`.
+
+## Technical notes
+- Column type is `text` (not enum) to keep future verticals cheap to add without a schema change.
+- `QueueItem.vertical` is required after migration; TypeScript will flag any missed write site, which is how we catch omissions.
+- Filtering is client-side against already-loaded rows (queue sizes are small and this matches the existing filter pattern). If volumes grow, move to a `.eq('vertical', verticalId)` server-side filter in `loadQueue`.
