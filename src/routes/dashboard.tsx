@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRulebook } from "@/hooks/use-rulebook";
@@ -229,9 +230,12 @@ function DashboardPage() {
               <button
                 type="button"
                 onClick={signOut}
-                className="border border-border bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
+                aria-label="Sign out"
+                title="Sign out"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center border border-border bg-background font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5 md:h-auto md:w-auto md:px-3 md:py-1"
               >
-                Sign out
+                <LogOut aria-hidden="true" className="h-3.5 w-3.5 md:hidden" />
+                <span className="hidden md:inline">Sign out</span>
               </button>
             </div>
           </div>
