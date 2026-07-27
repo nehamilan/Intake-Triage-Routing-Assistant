@@ -107,6 +107,7 @@ export type Database = {
           request_text: string
           reviewer_note: string | null
           status: string
+          vertical: string
           was_overridden: boolean
         }
         Insert: {
@@ -127,6 +128,7 @@ export type Database = {
           request_text: string
           reviewer_note?: string | null
           status: string
+          vertical?: string
           was_overridden?: boolean
         }
         Update: {
@@ -147,6 +149,7 @@ export type Database = {
           request_text?: string
           reviewer_note?: string | null
           status?: string
+          vertical?: string
           was_overridden?: boolean
         }
         Relationships: []
