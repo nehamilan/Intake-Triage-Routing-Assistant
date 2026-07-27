@@ -1812,21 +1812,31 @@ function QueueView({
   // Fold revisions into a single row per request. Table always shows the
   // latest version; the audit trail lives inside the workspace view.
   const allRows = currentQueue;
-  const rows = allRows.filter((item) => {
-    if (
-      statusFilter === "auto_routed" &&
-      item.finalDecision.status !== "auto_routed"
-    ) return false;
-    if (
-      statusFilter === "escalated" &&
-      item.finalDecision.status === "auto_routed"
-    ) return false;
-    if (routeFilter !== "all" && item.finalDecision.route !== routeFilter)
-      return false;
-    if (priorityFilter !== "all" && item.finalDecision.priority !== priorityFilter)
-      return false;
-    return true;
-  });
+  const rows = allRows
+    .filter((item) => {
+      if (
+        statusFilter === "auto_routed" &&
+        item.finalDecision.status !== "auto_routed"
+      ) return false;
+      if (
+        statusFilter === "escalated" &&
+        item.finalDecision.status === "auto_routed"
+      ) return false;
+      if (routeFilter !== "all" && item.finalDecision.route !== routeFilter)
+        return false;
+      if (priorityFilter !== "all" && item.finalDecision.priority !== priorityFilter)
+        return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      if (sortField === "date") {
+        return dir * (a.timestamp - b.timestamp);
+      }
+      // Priority: urgent=3, normal=2, low=1.
+      const weight: Record<Priority, number> = { urgent: 3, normal: 2, low: 1 };
+      return dir * (weight[a.finalDecision.priority] - weight[b.finalDecision.priority]);
+    });
   const anyEmbargo = rows.some((i) => i.aiRuling.embargo.mentioned);
   const revisionsPerRoot = new Map<string, number>();
   for (const item of items) {
