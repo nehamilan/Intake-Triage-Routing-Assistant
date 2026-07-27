@@ -42,7 +42,7 @@ export function AuthGate({
 
   const name = displayName || user.email || "user";
   const header = (
-    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+    <div className="flex flex-wrap items-center justify-end gap-2 md:gap-3">
       {/* Vertical switcher — swaps the RULEBOOK at runtime. */}
       <label className="flex items-center gap-1.5">
         <span className="sr-only">Vertical</span>
@@ -98,10 +98,10 @@ export function AuthGate({
         onClick={signOut}
         aria-label="Sign out"
         title="Sign out"
-        className="inline-flex items-center justify-center border border-border bg-background px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5 sm:px-3"
+        className="inline-flex h-7 w-7 shrink-0 items-center justify-center border border-border bg-background font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5 md:h-auto md:w-auto md:px-3 md:py-1"
       >
-        <LogOut aria-hidden="true" className="h-3.5 w-3.5 sm:hidden" />
-        <span className="hidden sm:inline">Sign out</span>
+        <LogOut aria-hidden="true" className="h-3.5 w-3.5 md:hidden" />
+        <span className="hidden md:inline">Sign out</span>
       </button>
     </div>
   );
