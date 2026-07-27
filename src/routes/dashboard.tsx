@@ -13,11 +13,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRulebook } from "@/hooks/use-rulebook";
+import { AccountMenu } from "@/components/AccountMenu";
 import { CATEGORY_LABELS, type Category } from "@/lib/rulebook";
+
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
