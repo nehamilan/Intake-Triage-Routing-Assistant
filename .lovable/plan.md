@@ -1,21 +1,38 @@
-## Fix: Sign-out wraps to its own line in the agent header
+## Move Sign Out into an account menu
 
-### Change
+Replace the always-visible name/role chip + sign-out button cluster with a single circular **account avatar button** in the header. Clicking it opens a dropdown menu containing the user's identity and a Sign out action. This eliminates the wrap issue permanently (one small round target instead of a wide cluster) and matches conventions users already know from Gmail, GitHub, Linear, etc.
 
-In `src/components/AuthGate.tsx`, replace the text "Sign out" button with a responsive variant:
-- `< sm` breakpoint: compact icon-only button (Lucide `LogOut` icon), same 7×7 square as the theme toggle, with `aria-label="Sign out"` and matching `title` for the tooltip.
-- `≥ sm` breakpoint: existing text button "Sign out" with the same styling as today.
+### What the header shows
 
-Implementation detail: render one button and toggle content with Tailwind responsive classes — `hidden sm:inline` on the text, `sm:hidden` on the icon — so we don't duplicate the element. Adjust padding to `px-2 sm:px-3` so the icon variant stays square.
+- Compact circular avatar button (initials from name/email, role-tinted ring for `agent` vs `viewer`).
+- No inline name, role pill, or sign-out button in the header bar itself.
 
-No other header controls change. No logic changes.
+### What the dropdown contains
 
-### Why this fixes it
+```text
+┌─────────────────────────────┐
+│ Neha Milan                  │  ← full name (or email fallback)
+│ nehamilan1991@gmail.com     │  ← muted
+│ Role: AGENT                 │  ← role badge
+├─────────────────────────────┤
+│ ⎋  Sign out                 │
+└─────────────────────────────┘
+```
 
-The header is `flex flex-wrap`. "Sign out" is the widest trailing item; shrinking it to an icon on small screens frees enough width for the whole row to fit on one line at ~640px, matching the screenshot.
+Uses the existing shadcn `DropdownMenu` primitive already in the project.
 
-### Verification
+### Files touched
 
-- Reload `/` at 640px and confirm all header controls sit on one line, with a logout icon at the end.
-- Resize to ≥ 640px and confirm the full "Sign out" label returns.
-- Confirm keyboard focus, `aria-label`, and click behavior still sign the user out.
+- `src/components/AuthGate.tsx` — replace the identity + sign-out cluster with `<DropdownMenu>` containing `Avatar` trigger and menu items. Keep sign-out logic identical.
+- `src/routes/dashboard.tsx` — same treatment so the viewer dashboard header matches.
+
+### Behavior preserved
+
+- Sign-out calls the same `supabase.auth.signOut()` flow.
+- Role is still visible (inside the menu, plus optional colored ring on avatar).
+- Fully keyboard-accessible via Radix dropdown defaults.
+
+### Not doing
+
+- No changes to auth logic, routes, roles, or any business code.
+- No changes to the vertical switcher or dark mode toggle placement.
