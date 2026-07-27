@@ -1,7 +1,7 @@
 // Shared types for the triage queue. Kept in a small module so both the
 // route component and the persistence layer speak the same shape.
 
-import type { Category, Priority } from "./rulebook";
+import type { Category, Priority, VerticalId } from "./rulebook";
 import type { Attachment } from "./attachments";
 import type { Decision } from "./mock-classify";
 import type { RuleResult, TriageStatus } from "./apply-rules";
@@ -44,4 +44,7 @@ export interface QueueItem {
   changes: FieldChange[];
   reason: string;
   guardrailAcknowledged: boolean;
+  // Domain the request was created under. Scopes the Queue and Dashboard
+  // to the active vertical so switching rulebooks also switches the view.
+  vertical: VerticalId;
 }

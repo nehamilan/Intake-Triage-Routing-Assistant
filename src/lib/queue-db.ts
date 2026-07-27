@@ -19,7 +19,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { applyRules } from "./apply-rules";
-import type { Category, Priority } from "./rulebook";
+import type { Category, Priority, VerticalId } from "./rulebook";
 import type { TriageStatus } from "./apply-rules";
 import type { Decision } from "./mock-classify";
 import type { Attachment } from "./attachments";
@@ -50,6 +50,7 @@ interface RequestRow {
   was_overridden: boolean;
   reviewer_note: string | null;
   current_revision: number;
+  vertical?: string | null;
 }
 
 interface RevisionRow {
@@ -138,6 +139,7 @@ export async function loadQueue(): Promise<QueueItem[]> {
   for (const req of reqs) {
     const attachments = parseAttachments(req.attachments);
     const flags = parseFlags(req.flags);
+    const vertical: VerticalId = req.vertical === "banking" ? "banking" : "research";
     const aiDecision: Decision = {
       category: req.ai_category as Category,
       priority: req.ai_priority as Priority,
@@ -185,6 +187,7 @@ export async function loadQueue(): Promise<QueueItem[]> {
         changes,
         reason: rev.reason ?? "",
         guardrailAcknowledged: rev.guardrail_acknowledged,
+        vertical,
       });
     }
   }
@@ -219,6 +222,7 @@ export async function persistNewRequest(item: QueueItem): Promise<void> {
     was_overridden: item.overridden,
     reviewer_note: item.reason || null,
     current_revision: item.revision,
+    vertical: item.vertical,
   });
   if (requestInsert.error) throw requestInsert.error;
 
