@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useRulebook } from "@/hooks/use-rulebook";
 import { CATEGORY_LABELS, type Category } from "@/lib/rulebook";
 
 export const Route = createFileRoute("/dashboard")({
@@ -40,6 +41,7 @@ interface RequestRow {
   final_route: string;
   status: string;
   was_overridden: boolean;
+  vertical: string | null;
 }
 
 const ROUTES = [
@@ -87,10 +89,17 @@ const ESCALATION_REASONS: Array<{ key: string; label: string; statuses: string[]
 
 function DashboardPage() {
   const { user, role, displayName, loading: authLoading, signOut } = useAuth();
+  const { rulebook, verticalId } = useRulebook();
   const navigate = useNavigate();
-  const [rows, setRows] = useState<RequestRow[]>([]);
+  const [allRows, setAllRows] = useState<RequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Scope every metric to the active vertical — switching the rulebook in
+  // the header also switches the dashboard's evidence layer.
+  const rows = useMemo(
+    () => allRows.filter((r) => (r.vertical ?? "research") === verticalId),
+    [allRows, verticalId],
+  );
 
   useEffect(() => {
     if (!authLoading && !user) navigate({ to: "/auth" });
@@ -104,12 +113,12 @@ function DashboardPage() {
       const { data, error } = await (supabase as any)
         .from("requests")
         .select(
-          "id, created_at, ai_category, ai_confidence, final_category, final_route, status, was_overridden",
+          "id, created_at, ai_category, ai_confidence, final_category, final_route, status, was_overridden, vertical",
         )
         .order("created_at", { ascending: true });
       if (cancelled) return;
       if (error) setError(error.message);
-      else setRows((data ?? []) as RequestRow[]);
+      else setAllRows((data ?? []) as RequestRow[]);
       setLoading(false);
     })();
     return () => {
@@ -199,6 +208,9 @@ function DashboardPage() {
               </h1>
               <p className="mt-2 font-serif text-sm italic text-muted-foreground sm:text-base">
                 Evidence layer — every metric is derived from persisted decisions.
+              </p>
+              <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                Showing: {rulebook.label}
               </p>
               <nav className="mt-3 flex gap-3 font-mono text-[10px] uppercase tracking-widest">
                 <Link to="/" className="text-muted-foreground hover:text-foreground">
