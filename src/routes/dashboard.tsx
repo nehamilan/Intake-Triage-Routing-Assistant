@@ -221,23 +221,14 @@ function DashboardPage() {
               </nav>
             </div>
             <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="font-serif text-sm leading-tight text-foreground">{name}</div>
-                <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
-                  {role ?? "no role"}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={signOut}
-                aria-label="Sign out"
-                title="Sign out"
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center border border-border bg-background font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5 md:h-auto md:w-auto md:px-3 md:py-1"
-              >
-                <LogOut aria-hidden="true" className="h-3.5 w-3.5 md:hidden" />
-                <span className="hidden md:inline">Sign out</span>
-              </button>
+              <AccountMenu
+                name={name}
+                email={user?.email}
+                role={role}
+                onSignOut={signOut}
+              />
             </div>
+
           </div>
         </header>
 
