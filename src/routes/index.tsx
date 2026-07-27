@@ -2253,10 +2253,42 @@ function FilterSelect({
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
+function Th({
+  children,
+  sortable,
+  sorted,
+  direction,
+  onClick,
+  title,
+}: {
+  children: React.ReactNode;
+  sortable?: boolean;
+  sorted?: boolean;
+  direction?: "asc" | "desc";
+  onClick?: () => void;
+  title?: string;
+}) {
   return (
-    <th className="px-3 py-3 font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-      {children}
+    <th
+      onClick={sortable ? onClick : undefined}
+      aria-sort={sorted ? (direction === "asc" ? "ascending" : "descending") : "none"}
+      title={title}
+      className={`px-3 py-3 text-left font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground ${
+        sortable ? "cursor-pointer select-none transition-colors hover:bg-muted/60" : ""
+      } ${sorted ? "bg-muted/40" : ""}`}
+    >
+      <span className="inline-flex items-center gap-1.5">
+        {children}
+        {sorted ? (
+          <span aria-hidden="true" className="text-foreground">
+            {direction === "asc" ? "▲" : "▼"}
+          </span>
+        ) : sortable ? (
+          <span aria-hidden="true" className="text-muted-foreground/40">
+            ⇅
+          </span>
+        ) : null}
+      </span>
     </th>
   );
 }
