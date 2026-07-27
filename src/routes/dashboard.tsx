@@ -209,6 +209,9 @@ function DashboardPage() {
               <p className="mt-2 font-serif text-sm italic text-muted-foreground sm:text-base">
                 Evidence layer — every metric is derived from persisted decisions.
               </p>
+              <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                Showing: {rulebook.label}
+              </p>
               <nav className="mt-3 flex gap-3 font-mono text-[10px] uppercase tracking-widest">
                 <Link to="/" className="text-muted-foreground hover:text-foreground">
                   ← Queue
