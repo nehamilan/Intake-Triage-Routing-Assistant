@@ -89,25 +89,14 @@ export function AuthGate({
         </Link>
       )}
       <div className="ml-auto inline-flex shrink-0 items-center gap-2">
-        <div className="min-w-0 text-right">
-          <div className="max-w-28 truncate font-serif text-sm leading-tight text-foreground sm:max-w-36">
-            {name}
-          </div>
-          <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
-            {role ?? "no role"}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={signOut}
-          aria-label="Sign out"
-          title="Sign out"
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center border border-border bg-background font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5 xl:h-auto xl:w-auto xl:px-3 xl:py-1"
-        >
-          <LogOut aria-hidden="true" className="h-3.5 w-3.5 xl:hidden" />
-          <span className="hidden xl:inline">Sign out</span>
-        </button>
+        <AccountMenu
+          name={name}
+          email={user.email}
+          role={role}
+          onSignOut={signOut}
+        />
       </div>
+
     </div>
   );
 
