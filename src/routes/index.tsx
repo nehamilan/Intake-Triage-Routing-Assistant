@@ -1942,10 +1942,26 @@ function QueueView({
         <table className="w-full min-w-[720px] border-collapse text-left">
           <thead>
             <tr className="border-b border-border">
-              <Th>Time</Th>
+              <Th
+                sortable
+                sorted={sortField === "date"}
+                direction={sortDir}
+                onClick={() => handleSort("date")}
+                title={`Sort by time (${sortField === "date" && sortDir === "desc" ? "oldest first" : "newest first"})`}
+              >
+                Time
+              </Th>
               <Th>Request</Th>
               <Th>Category</Th>
-              <Th>Priority</Th>
+              <Th
+                sortable
+                sorted={sortField === "priority"}
+                direction={sortDir}
+                onClick={() => handleSort("priority")}
+                title={`Sort by priority (${sortField === "priority" && sortDir === "desc" ? "low first" : "urgent first"})`}
+              >
+                Priority
+              </Th>
               <Th>Route</Th>
               {anyEmbargo ? <Th>Embargo</Th> : null}
               <Th>Status</Th>
