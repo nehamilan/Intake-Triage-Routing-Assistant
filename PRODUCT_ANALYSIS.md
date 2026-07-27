@@ -10,6 +10,7 @@
 - **AI's job.** One narrow, enum-constrained classification call per request: pick a category, a priority, and write a one-sentence reason with a self-reported confidence. Nothing else.
 - **Safety design.** The AI is sandwiched between two layers of deterministic code — pre-checks that can skip the model entirely, and post-checks that can override it — so no safety-critical routing depends on the model alone.
 - **Evidence layer.** A live dashboard and a labeled-CSV Evaluation page exist as first-class product surfaces, because "the model feels good" is not an answer a regulated operator can give an auditor.
+- **Portability across regulated verticals.** The same guardrail-sandwich architecture runs two shipped verticals — research-data intake and retail-banking complaints — and new domains (healthcare, insurance, legal intake) can be added by writing a rulebook, not rewriting the pipeline.
 
 ---
 
@@ -170,3 +171,4 @@ For the reader evaluating this as an AI PM portfolio piece:
 3. **Evidence is a product surface, not an afterthought.** The Dashboard and Evaluation pages exist because a regulated operator has to be able to answer "how do you know?"
 4. **Trade-offs are named, not hidden.** Sections 8 and 10 are the point of the document: this system optimizes for one thing at the explicit cost of others, and the next version knows what to fix first.
 5. **Portability is proven, not claimed.** Two verticals share one pipeline. The remaining coupling (guardrail shape) is called out and scheduled.
+6. **Vertical portability is proven, not claimed.** Two complete rulebooks — research data requests and banking complaints — share one classification pipeline, guardrail layer, and human-review workflow. That is intentional evidence that the safety architecture transfers to other regulated intake contexts.
