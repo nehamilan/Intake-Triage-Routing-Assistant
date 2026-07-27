@@ -947,7 +947,7 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
             </div>
           ) : (
             <QueueView
-              items={processedQueue}
+              items={verticalQueue}
               currentQueue={currentQueue}
               escalatedCount={escalatedCount}
               autoRoutedCount={autoRoutedCount}
