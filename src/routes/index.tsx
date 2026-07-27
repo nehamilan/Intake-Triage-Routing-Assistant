@@ -294,6 +294,7 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
       changes: opts.changes,
       reason: opts.reason,
       guardrailAcknowledged: opts.guardrailAcknowledged,
+      vertical: verticalId,
     };
   };
 
@@ -519,6 +520,7 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
         changes: [],
         reason: "",
         guardrailAcknowledged: false,
+        vertical: verticalId,
       };
       // Append the row as soon as it resolves so the queue fills in visibly.
       try {
@@ -575,8 +577,12 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
   // Counters and the queue table both reflect current versions only —
   // superseded revisions stay in the log but shouldn't inflate KPIs and
   // shouldn't show up as their own rows in the table.
-  const currentQueue = processedQueue.filter((q) => !q.supersededById);
-  const revisionCount = processedQueue.length - currentQueue.length;
+  // Scope everything the reviewer sees to the active vertical — switching
+  // the rulebook in the header also switches the queue view. Superseded
+  // revisions stay in the log but shouldn't inflate KPIs.
+  const verticalQueue = processedQueue.filter((q) => q.vertical === verticalId);
+  const currentQueue = verticalQueue.filter((q) => !q.supersededById);
+  const revisionCount = verticalQueue.length - currentQueue.length;
   const escalatedCount = currentQueue.filter(
     (q) => q.finalDecision.status !== "auto_routed",
   ).length;
