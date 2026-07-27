@@ -1735,6 +1735,21 @@ function QueueView({
   const [routeFilter, setRouteFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<"all" | Priority>("all");
 
+  // Sorting — controlled by clickable column headers. Reset to newest-first
+  // on every visit; deliberately not persisted.
+  const [sortField, setSortField] = useState<"date" | "priority">("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const handleSort = (field: "date" | "priority") => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      // Newest-first for date; urgent-first for priority.
+      setSortDir(field === "date" ? "desc" : "desc");
+    }
+  };
+
   const availableRoutes = useMemo(() => {
     const set = new Set<string>();
     for (const q of currentQueue) set.add(q.finalDecision.route);
@@ -1797,21 +1812,31 @@ function QueueView({
   // Fold revisions into a single row per request. Table always shows the
   // latest version; the audit trail lives inside the workspace view.
   const allRows = currentQueue;
-  const rows = allRows.filter((item) => {
-    if (
-      statusFilter === "auto_routed" &&
-      item.finalDecision.status !== "auto_routed"
-    ) return false;
-    if (
-      statusFilter === "escalated" &&
-      item.finalDecision.status === "auto_routed"
-    ) return false;
-    if (routeFilter !== "all" && item.finalDecision.route !== routeFilter)
-      return false;
-    if (priorityFilter !== "all" && item.finalDecision.priority !== priorityFilter)
-      return false;
-    return true;
-  });
+  const rows = allRows
+    .filter((item) => {
+      if (
+        statusFilter === "auto_routed" &&
+        item.finalDecision.status !== "auto_routed"
+      ) return false;
+      if (
+        statusFilter === "escalated" &&
+        item.finalDecision.status === "auto_routed"
+      ) return false;
+      if (routeFilter !== "all" && item.finalDecision.route !== routeFilter)
+        return false;
+      if (priorityFilter !== "all" && item.finalDecision.priority !== priorityFilter)
+        return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      if (sortField === "date") {
+        return dir * (a.timestamp - b.timestamp);
+      }
+      // Priority: urgent=3, normal=2, low=1.
+      const weight: Record<Priority, number> = { urgent: 3, normal: 2, low: 1 };
+      return dir * (weight[a.finalDecision.priority] - weight[b.finalDecision.priority]);
+    });
   const anyEmbargo = rows.some((i) => i.aiRuling.embargo.mentioned);
   const revisionsPerRoot = new Map<string, number>();
   for (const item of items) {
@@ -1917,10 +1942,26 @@ function QueueView({
         <table className="w-full min-w-[720px] border-collapse text-left">
           <thead>
             <tr className="border-b border-border">
-              <Th>Time</Th>
+              <Th
+                sortable
+                sorted={sortField === "date"}
+                direction={sortDir}
+                onClick={() => handleSort("date")}
+                title={`Sort time ${sortField === "date" && sortDir === "desc" ? "oldest first" : "newest first"}`}
+              >
+                Time
+              </Th>
               <Th>Request</Th>
               <Th>Category</Th>
-              <Th>Priority</Th>
+              <Th
+                sortable
+                sorted={sortField === "priority"}
+                direction={sortDir}
+                onClick={() => handleSort("priority")}
+                title={`Sort priority ${sortField === "priority" && sortDir === "desc" ? "low first" : "urgent first"}`}
+              >
+                Priority
+              </Th>
               <Th>Route</Th>
               {anyEmbargo ? <Th>Embargo</Th> : null}
               <Th>Status</Th>
@@ -2253,10 +2294,42 @@ function FilterSelect({
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
+function Th({
+  children,
+  sortable,
+  sorted,
+  direction,
+  onClick,
+  title,
+}: {
+  children: React.ReactNode;
+  sortable?: boolean;
+  sorted?: boolean;
+  direction?: "asc" | "desc";
+  onClick?: () => void;
+  title?: string;
+}) {
   return (
-    <th className="px-3 py-3 font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-      {children}
+    <th
+      onClick={sortable ? onClick : undefined}
+      aria-sort={sorted ? (direction === "asc" ? "ascending" : "descending") : "none"}
+      title={title}
+      className={`px-3 py-3 text-left font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground ${
+        sortable ? "cursor-pointer select-none transition-colors hover:bg-muted/60" : ""
+      } ${sorted ? "bg-muted/40" : ""}`}
+    >
+      <span className="inline-flex items-center gap-1.5">
+        {children}
+        {sorted ? (
+          <span aria-hidden="true" className="text-foreground">
+            {direction === "asc" ? "▲" : "▼"}
+          </span>
+        ) : sortable ? (
+          <span aria-hidden="true" className="text-muted-foreground/40">
+            ⇅
+          </span>
+        ) : null}
+      </span>
     </th>
   );
 }
