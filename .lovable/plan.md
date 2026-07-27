@@ -1,38 +1,68 @@
-## Move Sign Out into an account menu
+## Goal
+Create the documentation structure for the AI Product Manager portfolio project. No content writing yet — only files, directories, and section headings.
 
-Replace the always-visible name/role chip + sign-out button cluster with a single circular **account avatar button** in the header. Clicking it opens a dropdown menu containing the user's identity and a Sign out action. This eliminates the wrap issue permanently (one small round target instead of a wide cluster) and matches conventions users already know from Gmail, GitHub, Linear, etc.
+## Scope
+- Leave the existing `README.md` untouched.
+- Create a `/docs` directory with 11 markdown files.
+- Create an `/assets` directory with three subdirectories for screenshots, diagrams, and demo artifacts.
+- Each markdown file gets a frontmatter block, an H1 title, and a set of H2 section headings that match the project's architecture and narrative.
 
-### What the header shows
+## Deliverables
 
-- Compact circular avatar button (initials from name/email, role-tinted ring for `agent` vs `viewer`).
-- No inline name, role pill, or sign-out button in the header bar itself.
+### Directories
+- `/docs`
+- `/assets/screenshots`
+- `/assets/diagrams`
+- `/assets/demo`
 
-### What the dropdown contains
+### Files to create
 
-```text
-┌─────────────────────────────┐
-│ Neha Milan                  │  ← full name (or email fallback)
-│ nehamilan1991@gmail.com     │  ← muted
-│ Role: AGENT                 │  ← role badge
-├─────────────────────────────┤
-│ ⎋  Sign out                 │
-└─────────────────────────────┘
-```
+1. **`/docs/AI-Product-Brief.md`**
+   - Title: AI Product Brief: Intake Triage & Routing Assistant
+   - Headings: Problem, Users & Roles, AI's Job, Inputs & Outputs, Success Metrics, Non-Goals, Vertical Portability
 
-Uses the existing shadcn `DropdownMenu` primitive already in the project.
+2. **`/docs/Model-Decision-Design.md`**
+   - Title: Model Decision Design
+   - Headings: Task Shape, Model Inputs, Model Outputs, Category-to-Route Mapping, Confidence as a Signal, What the Model Does Not See
 
-### Files touched
+3. **`/docs/Output-Guardrails.md`**
+   - Title: Output Guardrails
+   - Headings: Guardrail Sandwich, Pre-Check Layer, Post-Check Layer, Escalation Statuses, Fail-Safe Parsing, Confidence Gate
 
-- `src/components/AuthGate.tsx` — replace the identity + sign-out cluster with `<DropdownMenu>` containing `Avatar` trigger and menu items. Keep sign-out logic identical.
-- `src/routes/dashboard.tsx` — same treatment so the viewer dashboard header matches.
+4. **`/docs/Evaluation-Framework.md`**
+   - Title: Evaluation Framework
+   - Headings: Test Set Format, Accuracy Metrics, Confusion Matrix, Escalation Recall, Running an Evaluation, Exporting Results
 
-### Behavior preserved
+5. **`/docs/Uncertainty-and-Fallbacks.md`**
+   - Title: Uncertainty & Fallbacks
+   - Headings: Confidence Threshold, Parse Failures, Network Failures, Model Hallucinations, Short-Circuit Escalations
 
-- Sign-out calls the same `supabase.auth.signOut()` flow.
-- Role is still visible (inside the menu, plus optional colored ring on avatar).
-- Fully keyboard-accessible via Radix dropdown defaults.
+6. **`/docs/Human-in-the-Loop.md`**
+   - Title: Human-in-the-Loop
+   - Headings: Reviewer Workflow, Accept vs Override, Revisions & Audit Log, Guardrail Acknowledgment, Role-Based Access
 
-### Not doing
+7. **`/docs/Risk-Analysis.md`**
+   - Title: Risk Analysis
+   - Headings: Failure Modes, Mitigations, Residual Risks, Compliance Considerations, Abuse Scenarios
 
-- No changes to auth logic, routes, roles, or any business code.
-- No changes to the vertical switcher or dark mode toggle placement.
+8. **`/docs/Product-Tradeoffs.md`**
+   - Title: Product Tradeoffs
+   - Headings: Safety Over Throughput, Rulebook as Data, Metadata-Only Attachments, Single Model, Free-Text Reviewer Identity
+
+9. **`/docs/Technical-Architecture.md`**
+   - Title: Technical Architecture
+   - Headings: Stack Overview, Route & Component Structure, Server Functions, Database Schema, Authentication & Authorization, Styling & Theming
+
+10. **`/docs/Prompt-Design.md`**
+    - Title: Prompt Design
+    - Headings: System Prompt, Enum Injection, Attachment Metadata Handling, Date & Embargo Instructions, Confidence Calibration
+
+11. **`/docs/Roadmap.md`**
+    - Title: Roadmap
+    - Headings: P0 — Ship Blockers, P1 — Continuous Quality, P2 — Capability Expansion, P3 — Operational Maturity
+
+## Implementation notes
+- Use standard Markdown with YAML frontmatter (`title`, `description`).
+- Each file contains only the H1 and H2 headings; no body paragraphs, no code blocks, no diagrams at this stage.
+- Asset directories remain empty until content population.
+- No changes to `README.md` or any application code.
