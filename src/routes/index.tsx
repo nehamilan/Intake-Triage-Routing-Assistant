@@ -1735,6 +1735,21 @@ function QueueView({
   const [routeFilter, setRouteFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<"all" | Priority>("all");
 
+  // Sorting — controlled by clickable column headers. Reset to newest-first
+  // on every visit; deliberately not persisted.
+  const [sortField, setSortField] = useState<"date" | "priority">("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const handleSort = (field: "date" | "priority") => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      // Newest-first for date; urgent-first for priority.
+      setSortDir(field === "date" ? "desc" : "desc");
+    }
+  };
+
   const availableRoutes = useMemo(() => {
     const set = new Set<string>();
     for (const q of currentQueue) set.add(q.finalDecision.route);
