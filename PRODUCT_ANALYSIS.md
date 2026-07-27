@@ -25,6 +25,8 @@ The product's insight: **the scarce resource being protected is not agent time �
 
 The reframe: **the AI produces a reviewed first draft, not a decision.** A human always finalizes. The system is judged on how reliably it (a) auto-routes the easy cases and (b) *refuses to auto-route* the dangerous ones.
 
+While the seed vertical is a research data repository, the underlying pattern — high-volume routine intake with a dangerous, low-frequency tail — is common to healthcare patient portals, insurance claims, fraud hotlines, and legal intake. The product is designed so that adapting it to a new regulated vertical is a rulebook change, not an application rewrite.
+
 ## 2. Users and jobs-to-be-done
 
 | User | Role in the system | What they come to do |
