@@ -1947,7 +1947,7 @@ function QueueView({
                 sorted={sortField === "date"}
                 direction={sortDir}
                 onClick={() => handleSort("date")}
-                title={`Sort by time (${sortField === "date" && sortDir === "desc" ? "oldest first" : "newest first"})`}
+                title={`Sort time ${sortField === "date" && sortDir === "desc" ? "oldest first" : "newest first"}`}
               >
                 Time
               </Th>
@@ -1958,7 +1958,7 @@ function QueueView({
                 sorted={sortField === "priority"}
                 direction={sortDir}
                 onClick={() => handleSort("priority")}
-                title={`Sort by priority (${sortField === "priority" && sortDir === "desc" ? "low first" : "urgent first"})`}
+                title={`Sort priority ${sortField === "priority" && sortDir === "desc" ? "low first" : "urgent first"}`}
               >
                 Priority
               </Th>
