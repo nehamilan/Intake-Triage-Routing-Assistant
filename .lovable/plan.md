@@ -1,29 +1,42 @@
-## Context
+Add client-side sorting to the Queue table, controlled entirely by clickable `<th>` headers. No separate sort dropdown and no persistence — default to newest-first on every visit.
 
-New signups get the `viewer` role by default (set by the `handle_new_user` trigger). Viewers are read-only — that's why Accept / Override / Reopen and the Evaluation page are hidden for you. To edit entries under Recent Decisions you need the `agent` role.
+## What we’ll change
 
-There is no separate "admin" login — the app has exactly two roles: `agent` (full read + write) and `viewer` (read-only dashboard). "Agent" is the equivalent of admin here.
+### 1. Sort state in `QueueView`
+- Add local state in `src/routes/index.tsx` inside `QueueView`:
+  - `sortField`: `"date" | "priority"`
+  - `sortDir`: `"asc" | "desc"`
+- Default on mount: `sortField = "date"`, `sortDir = "desc"`.
 
-## Plan
+### 2. Make `Th` interactive
+- Update the `Th` helper to accept an optional `onClick`, `sorted`, and `direction`.
+- Render a small sort indicator (▲ / ▼) next to the label/assets label when active.
+- Use `cursor-pointer` and `hover:bg-muted` only on sortable columns.
+- Keep non-sortable headers (Embargo, Status, Override, Action) plain.
 
-1. You tell me the email you signed up with on the preview (`https://id-preview--3ba9c55a-...lovable.app`).
-2. I run a one-line migration that upgrades that user's row in `public.user_roles` from `viewer` to `agent`:
+### 3. Sortable columns
+Only **Time** and **Priority** get click-to-sort behavior:
+- **Time**: sorts by `item.timestamp`.
+  - `desc` = newest first (default)
+  - `asc` = oldest first
+- **Priority**: sorts by a fixed numeric weight.
+  - `desc` = urgent → normal → low
+  - `asc` = low → normal → urgent
 
-   ```sql
-   UPDATE public.user_roles
-   SET role = 'agent'
-   WHERE user_id = (SELECT id FROM auth.users WHERE email = '<your-email>');
-   ```
-3. You sign out and back in (or just refresh) — the header will show the `agent` badge and all edit controls appear.
+### 4. Apply sort after filters
+- Keep the existing status / route / priority filters unchanged.
+- After filtering, sort `rows` by the active `sortField` and `sortDir`.
+- Counters and the filter result count remain based on the filtered set.
 
-## Credentials
+### 5. Visual polish
+- Active sort header gets a subtle highlight (`bg-muted/60` or similar).
+- Add `title` attributes so reviewers know the next click direction.
+- Ensure the indicator is accessible via `aria-sort` on the `<th>`.
 
-Keep using the same email + password you already signed up with. Nothing new to remember — the change is purely a role flip on the server.
+## Files touched
+- `src/routes/index.tsx` only.
 
-## Optional follow-ups (say the word if you want any of these)
-
-- Change the trigger so **new signups default to `agent`** (fine for a demo, not for production).
-- Add a small **"Users & Roles" admin page** where an existing agent can promote/demote other users from the UI.
-- Add a **first-user-becomes-agent** rule so bootstrapping doesn't need a manual SQL step.
-
-Reply with the email and I'll ship step 2.
+## Out of scope
+- No persistence (localStorage) — resets to newest-first each visit as requested.
+- No sorting by Category, Route, Status, or Override.
+- No changes to filters or counters.
