@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { useRulebook } from "@/hooks/use-rulebook";
+import { AccountMenu } from "@/components/AccountMenu";
 import { loadQueue } from "@/lib/queue-db";
 import type { QueueItem } from "@/lib/queue-types";
 import { STATUS_LABELS } from "@/lib/apply-rules";
 import { CATEGORY_LABELS } from "@/lib/rulebook";
+
 
 /**
  * AuthGate: redirects unauthenticated visitors to /auth and blocks render
