@@ -19,7 +19,7 @@ This same model can easily be adapted for other regulated environments like heal
 |------|--------------|--------|
 | **Agent** | Triage new requests, accept or override AI proposals, add reviewer notes, finalize decisions. | Full triage and review UI; queue filters; evaluation page. |
 | **Viewer** | Monitor throughput, escalations, and routing distribution. | Read-only dashboard and queue view. No accept/override actions. |
-| **Admin / Auditor** (implicit) | Reviews the audit log of revisions, guardrail acknowledgments, and override reasons. | Implemented through the persisted revision history and role table. |
+| **Auditor (future)** | A future role for reviewing audit logs, guardrail acknowledgments, and override reasons. | Future: read-only audit view. Not implemented in the current role table. |
 
 ## AI's Job
 
