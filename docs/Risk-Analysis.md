@@ -48,4 +48,4 @@ Specific compliance regimes (GDPR, HIPAA, 21 CFR Part 11, etc.) would require ad
 
 - **Prompt injection in request text** — an attacker tries to override the system prompt. Mitigation: the system prompt is fixed server-side; the user text is treated as data, not instructions. The output is still validated against the rulebook.
 - **Flooding the queue** — high volume of low-confidence or guardrail-triggering requests. Mitigation: batch processing is sequential and rate-limited by the model provider; the queue can be filtered and sorted.
-- **Reviewer bypass** — an agent overrides a guardrail without good reason. Mitigation: the acknowledgment checkbox and mandatory reason create an audit record that can be reviewed by admins.
+- **Reviewer bypass** — an agent overrides a guardrail without good reason. Mitigation: the acknowledgment checkbox and mandatory reason create an audit record that can be reviewed by other agents or a future dedicated auditor role.
