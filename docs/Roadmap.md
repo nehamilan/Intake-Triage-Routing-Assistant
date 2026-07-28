@@ -35,6 +35,7 @@ description: Prioritized roadmap from ship-blockers to operational maturity for 
 
 - [ ] SLA tracking: time-to-finalize by priority and route.
 - [ ] Admin panel for managing agents, viewers, and rulebooks without SQL.
+- [ ] Introduce a dedicated read-only Auditor role with scoped access to the full audit trail and compliance exports.
 - [ ] Export full audit trail to PDF for compliance reviews.
 - [ ] Integration with downstream case-management systems (Jira, ServiceNow, Zendesk).
 - [ ] SOC 2 / HIPAA readiness documentation and controls.
