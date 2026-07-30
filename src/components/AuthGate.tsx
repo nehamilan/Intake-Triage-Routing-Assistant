@@ -109,6 +109,7 @@ export function AuthGate({
  * Queue writes are also blocked server-side by RLS.
  */
 export function ViewerDashboard({ header }: { header: ReactNode }) {
+  const { rulebook, verticalId } = useRulebook();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
