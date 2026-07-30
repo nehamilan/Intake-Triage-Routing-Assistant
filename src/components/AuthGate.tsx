@@ -109,6 +109,7 @@ export function AuthGate({
  * Queue writes are also blocked server-side by RLS.
  */
 export function ViewerDashboard({ header }: { header: ReactNode }) {
+  const { rulebook, verticalId } = useRulebook();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -130,7 +131,12 @@ export function ViewerDashboard({ header }: { header: ReactNode }) {
     };
   }, []);
 
-  const current = useMemo(() => items.filter((i) => !i.supersededById), [items]);
+  // Scope the read-only view to the active vertical, matching the agent queue —
+  // otherwise research and banking rows are indistinguishable in this list.
+  const current = useMemo(
+    () => items.filter((i) => !i.supersededById && i.vertical === verticalId),
+    [items, verticalId],
+  );
   const escalated = current.filter((i) => i.finalDecision.status !== "auto_routed").length;
   const autoRouted = current.length - escalated;
 
@@ -144,7 +150,7 @@ export function ViewerDashboard({ header }: { header: ReactNode }) {
                 Intake Triage — Dashboard
               </h1>
               <p className="mt-2 font-serif text-sm italic text-muted-foreground sm:text-base">
-                Read-only view. Ask an agent for edit access.
+                Read-only view of {rulebook.label}. Ask an agent for edit access.
               </p>
             </div>
             {header}
@@ -170,7 +176,8 @@ export function ViewerDashboard({ header }: { header: ReactNode }) {
               </p>
             ) : current.length === 0 ? (
               <p className="font-serif text-sm italic text-muted-foreground">
-                No decisions yet.
+                No decisions yet for {rulebook.label}. Switch the vertical in the
+                header to see other intake streams.
               </p>
             ) : (
               <ul className="divide-y divide-border border border-border">
