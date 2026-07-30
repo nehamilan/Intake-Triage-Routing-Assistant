@@ -16,6 +16,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRulebook } from "@/hooks/use-rulebook";
+import { useTheme } from "@/hooks/use-theme";
 import { AccountMenu } from "@/components/AccountMenu";
 import { CATEGORY_LABELS, type Category } from "@/lib/rulebook";
 
