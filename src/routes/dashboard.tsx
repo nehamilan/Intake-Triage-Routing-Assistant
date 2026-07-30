@@ -224,6 +224,17 @@ function DashboardPage() {
               </nav>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                className="inline-flex h-7 w-7 items-center justify-center border border-border bg-background text-foreground hover:bg-foreground/5"
+              >
+                <span aria-hidden="true" className="text-xs">
+                  {theme === "dark" ? "☀" : "☾"}
+                </span>
+              </button>
               <AccountMenu
                 name={name}
                 email={user?.email}
@@ -231,7 +242,6 @@ function DashboardPage() {
                 onSignOut={signOut}
               />
             </div>
-
           </div>
         </header>
 
