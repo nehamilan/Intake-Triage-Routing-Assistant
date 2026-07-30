@@ -16,6 +16,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRulebook } from "@/hooks/use-rulebook";
+import { useTheme } from "@/hooks/use-theme";
 import { AccountMenu } from "@/components/AccountMenu";
 import { CATEGORY_LABELS, type Category } from "@/lib/rulebook";
 
@@ -92,6 +93,7 @@ const ESCALATION_REASONS: Array<{ key: string; label: string; statuses: string[]
 function DashboardPage() {
   const { user, role, displayName, loading: authLoading, signOut } = useAuth();
   const { rulebook, verticalId } = useRulebook();
+  const { theme, toggle: toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [allRows, setAllRows] = useState<RequestRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -222,6 +224,17 @@ function DashboardPage() {
               </nav>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                className="inline-flex h-7 w-7 items-center justify-center border border-border bg-background text-foreground hover:bg-foreground/5"
+              >
+                <span aria-hidden="true" className="text-xs">
+                  {theme === "dark" ? "☀" : "☾"}
+                </span>
+              </button>
               <AccountMenu
                 name={name}
                 email={user?.email}
@@ -229,7 +242,6 @@ function DashboardPage() {
                 onSignOut={signOut}
               />
             </div>
-
           </div>
         </header>
 
