@@ -130,7 +130,12 @@ export function ViewerDashboard({ header }: { header: ReactNode }) {
     };
   }, []);
 
-  const current = useMemo(() => items.filter((i) => !i.supersededById), [items]);
+  // Scope the read-only view to the active vertical, matching the agent queue —
+  // otherwise research and banking rows are indistinguishable in this list.
+  const current = useMemo(
+    () => items.filter((i) => !i.supersededById && i.vertical === verticalId),
+    [items, verticalId],
+  );
   const escalated = current.filter((i) => i.finalDecision.status !== "auto_routed").length;
   const autoRouted = current.length - escalated;
 
