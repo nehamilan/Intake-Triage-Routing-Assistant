@@ -62,18 +62,6 @@ export function AuthGate({
           ))}
         </select>
       </label>
-      {/* Dark-mode toggle. */}
-      <button
-        type="button"
-        onClick={toggleTheme}
-        aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-        title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-        className="inline-flex h-7 w-7 items-center justify-center border border-border bg-background text-foreground hover:bg-foreground/5"
-      >
-        <span aria-hidden="true" className="text-xs">
-          {theme === "dark" ? "☀" : "☾"}
-        </span>
-      </button>
       <Link
         to="/dashboard"
         className="border border-border bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
@@ -89,6 +77,18 @@ export function AuthGate({
         </Link>
       )}
       <div className="ml-auto inline-flex shrink-0 items-center gap-2">
+        {/* Dark-mode toggle — placed immediately before the account icon. */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          className="inline-flex h-7 w-7 items-center justify-center border border-border bg-background text-foreground hover:bg-foreground/5"
+        >
+          <span aria-hidden="true" className="text-xs">
+            {theme === "dark" ? "☀" : "☾"}
+          </span>
+        </button>
         <AccountMenu
           name={name}
           email={user.email}
@@ -96,7 +96,6 @@ export function AuthGate({
           onSignOut={signOut}
         />
       </div>
-
     </div>
   );
 
