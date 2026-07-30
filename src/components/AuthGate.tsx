@@ -150,7 +150,7 @@ export function ViewerDashboard({ header }: { header: ReactNode }) {
                 Intake Triage — Dashboard
               </h1>
               <p className="mt-2 font-serif text-sm italic text-muted-foreground sm:text-base">
-                Read-only view. Ask an agent for edit access.
+                Read-only view of {rulebook.label}. Ask an agent for edit access.
               </p>
             </div>
             {header}
