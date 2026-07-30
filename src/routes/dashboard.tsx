@@ -93,6 +93,7 @@ const ESCALATION_REASONS: Array<{ key: string; label: string; statuses: string[]
 function DashboardPage() {
   const { user, role, displayName, loading: authLoading, signOut } = useAuth();
   const { rulebook, verticalId } = useRulebook();
+  const { theme, toggle: toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [allRows, setAllRows] = useState<RequestRow[]>([]);
   const [loading, setLoading] = useState(true);
