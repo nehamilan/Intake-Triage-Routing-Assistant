@@ -176,7 +176,8 @@ export function ViewerDashboard({ header }: { header: ReactNode }) {
               </p>
             ) : current.length === 0 ? (
               <p className="font-serif text-sm italic text-muted-foreground">
-                No decisions yet.
+                No decisions yet for {rulebook.label}. Switch the vertical in the
+                header to see other intake streams.
               </p>
             ) : (
               <ul className="divide-y divide-border border border-border">
