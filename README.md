@@ -137,7 +137,3 @@ and unvalidated assumptions, decision design, guardrails, evaluation and release
 launch and rollout, operations runbook, data governance, risk register, trade-offs, and a
 decision log of the options that were rejected.
 
-Start with the [Hiring-Manager Review](./docs/Hiring-Manager-Review.md), which scores the
-project against AI product competencies and states plainly what is built, what is only
-designed, and which claims remain unvalidated.
-
