@@ -40,7 +40,7 @@ For each request, the model produces exactly four fields:
 - `category` — one value from the active rulebook's categories.
 - `priority` — `urgent`, `normal`, or `low`.
 - `reason` — one short sentence justifying the classification.
-- `confidence` — a self-reported score in `[0, 1]`.
+- `confidence` — a self-reported score.
 
 The `route` is **not** chosen by the model. It is derived deterministically from `rulebook.routes[category]` after the response is validated. The model also does not decide whether the item is finalized, escalated, or auto-routed — those states are set by `applyRules` and by the human reviewer.
 
