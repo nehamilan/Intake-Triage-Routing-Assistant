@@ -129,3 +129,15 @@ project_specs.md                 ← full spec, tier by tier
 - Not a "trust the AI" product — the entire architecture is designed so that a failed, slow, or hallucinating model degrades to human review, never to a wrong auto-route.
 
 For the full case study (problem framing, user model, risk analysis, trade-offs, roadmap), see [`PRODUCT_ANALYSIS.md`](./PRODUCT_ANALYSIS.md).
+
+## Product documentation
+
+Full product documentation lives in [`docs/`](./docs/README.md) — problem framing, discovery
+and unvalidated assumptions, decision design, guardrails, evaluation and release gates,
+launch and rollout, operations runbook, data governance, risk register, trade-offs, and a
+decision log of the options that were rejected.
+
+Start with the [Hiring-Manager Review](./docs/Hiring-Manager-Review.md), which scores the
+project against AI product competencies and states plainly what is built, what is only
+designed, and which claims remain unvalidated.
+

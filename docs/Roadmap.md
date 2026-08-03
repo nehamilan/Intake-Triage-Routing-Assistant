@@ -21,7 +21,11 @@ description: Prioritized roadmap from ship-blockers to operational maturity for 
 - [ ] Track override rate, parse-failure rate, and escalation recall over time.
 - [ ] Add a "model performance" tab to the dashboard showing trend lines.
 - [ ] A/B test prompt variants against the evaluation set.
-- [ ] Auto-populate reviewer identity from the authenticated session.
+- [ ] Auto-populate reviewer identity from the authenticated session (today the reviewer name is free text, which weakens the audit trail).
+- [ ] Alerting on parse-failure rate, escalation rate, and latency — thresholds are defined in the [Operations Runbook](./Operations-Runbook.md) but reviewed manually today.
+- [ ] Retention purge job and a deletion path for erasure requests, per [Data Governance](./Data-Governance.md).
+- [ ] PII redaction pass before model egress, so sensitive text beyond the privacy-incident patterns never reaches the gateway.
+
 
 ## P2 — Capability Expansion
 
