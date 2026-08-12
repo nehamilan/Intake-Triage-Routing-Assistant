@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
@@ -16,8 +16,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRulebook } from "@/hooks/use-rulebook";
-import { useTheme } from "@/hooks/use-theme";
-import { AccountMenu } from "@/components/AccountMenu";
+import { AppHeader } from "@/components/AppHeader";
 import { CATEGORY_LABELS, type Category } from "@/lib/rulebook";
 
 
@@ -91,9 +90,8 @@ const ESCALATION_REASONS: Array<{ key: string; label: string; statuses: string[]
 ];
 
 function DashboardPage() {
-  const { user, role, displayName, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { rulebook, verticalId } = useRulebook();
-  const { theme, toggle: toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [allRows, setAllRows] = useState<RequestRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -199,51 +197,14 @@ function DashboardPage() {
     );
   }
 
-  const name = displayName || user.email || "user";
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-6 sm:px-8 sm:py-10">
-        <header className="mb-8 border-b border-foreground pb-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="font-serif text-2xl font-medium leading-tight sm:text-3xl">
-                Triage Dashboard
-              </h1>
-              <p className="mt-2 font-serif text-sm italic text-muted-foreground sm:text-base">
-                Evidence layer — every metric is derived from persisted decisions.
-              </p>
-              <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                Showing: {rulebook.label}
-              </p>
-              <nav className="mt-3 flex gap-3 font-mono text-[10px] uppercase tracking-widest">
-                <Link to="/" className="text-muted-foreground hover:text-foreground">
-                  ← Queue
-                </Link>
-                <span className="font-bold text-foreground">Dashboard</span>
-              </nav>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={toggleTheme}
-                aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                className="inline-flex h-7 w-7 items-center justify-center border border-border bg-background text-foreground hover:bg-foreground/5"
-              >
-                <span aria-hidden="true" className="text-xs">
-                  {theme === "dark" ? "☀" : "☾"}
-                </span>
-              </button>
-              <AccountMenu
-                name={name}
-                email={user?.email}
-                role={role}
-                onSignOut={signOut}
-              />
-            </div>
-          </div>
-        </header>
+        <AppHeader
+          active="dashboard"
+          title="Triage Dashboard"
+          subtitle={`Evidence layer — every metric is derived from persisted decisions. Showing: ${rulebook.label}.`}
+        />
 
         {error ? (
           <div className="mb-6 border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">

@@ -1,4 +1,5 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { AppHeader } from "@/components/AppHeader";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -250,33 +251,11 @@ function EvaluationPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-8 sm:px-8 sm:py-10">
-        <header className="mb-8 border-b border-foreground pb-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="font-serif text-2xl font-medium leading-tight sm:text-3xl">
-                Evaluation — Accuracy vs. Labeled Test Set
-              </h1>
-              <p className="mt-2 font-serif text-sm italic text-muted-foreground sm:text-base">
-                Upload a labeled CSV. Every row runs through the full pipeline: pre-checks, classifier,
-                and rulebook. The numbers below are the evidence that the product works.
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Link
-                to="/"
-                className="border border-border bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
-              >
-                Home
-              </Link>
-              <Link
-                to="/dashboard"
-                className="border border-border bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
-              >
-                Dashboard
-              </Link>
-            </div>
-          </div>
-        </header>
+        <AppHeader
+          active="evaluation"
+          title="Evaluation — Accuracy vs. Labeled Test Set"
+          subtitle="Upload a labeled CSV. Every row runs through the full pipeline: pre-checks, classifier, and rulebook. The numbers below are the evidence that the product works."
+        />
 
         {!isAgent ? (
           <div className="border border-amber-300 bg-amber-50 px-4 py-6 font-serif text-sm text-amber-900">
