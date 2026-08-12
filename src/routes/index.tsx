@@ -38,9 +38,15 @@ import type {
 import { AuthGate, ViewerDashboard } from "@/components/AuthGate";
 
 export const Route = createFileRoute("/")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    tab: search.tab === "queue" ? ("queue" as const) : undefined,
-  }),
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { tab?: "triage" | "queue" } =>
+    search.tab === "queue"
+      ? { tab: "queue" }
+      : search.tab === "triage"
+        ? { tab: "triage" }
+        : {},
+
   head: () => ({
     meta: [
       { title: "Intake Triage & Routing Assistant" },
