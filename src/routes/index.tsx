@@ -36,8 +36,18 @@ import type {
 } from "@/lib/queue-types";
 
 import { AuthGate, ViewerDashboard } from "@/components/AuthGate";
+import { AppHeader } from "@/components/AppHeader";
 
 export const Route = createFileRoute("/")({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { tab?: "triage" | "queue" } =>
+    search.tab === "queue"
+      ? { tab: "queue" }
+      : search.tab === "triage"
+        ? { tab: "triage" }
+        : {},
+
   head: () => ({
     meta: [
       { title: "Intake Triage & Routing Assistant" },
@@ -60,13 +70,9 @@ export const Route = createFileRoute("/")({
 });
 
 function RouteComponent() {
-  return (
-    <AuthGate
-      agentView={({ header }) => <Index headerControls={header} />}
-      viewerView={({ header }) => <ViewerDashboard header={header} />}
-    />
-  );
+  return <AuthGate agentView={() => <Index />} viewerView={() => <ViewerDashboard />} />;
 }
+
 
 // ---------- Constants ----------
 
@@ -128,13 +134,16 @@ function computeChanges(
 
 // ---------- Root component ----------
 
-function Index({ headerControls }: { headerControls?: React.ReactNode }) {
+function Index() {
   const { rulebook, verticalId } = useRulebook();
-
+  const search = Route.useSearch();
 
   const [requestText, setRequestText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [activeTab, setActiveTab] = useState<"triage" | "queue">("triage");
+  const [activeTab, setActiveTab] = useState<"triage" | "queue">(
+    search.tab === "queue" ? "queue" : "triage",
+  );
+
   const [decision, setDecision] = useState<Decision | null>(null);
   const [ruling, setRuling] = useState<RuleResult | null>(null);
   const [processedQueue, setProcessedQueue] = useState<QueueItem[]>([]);
@@ -606,40 +615,12 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-8 sm:px-8 sm:py-10">
-        <header className="mb-8 border-b border-foreground pb-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-baseline sm:justify-between">
-            <h1 className="font-serif text-2xl font-medium leading-tight text-foreground sm:text-3xl">
-              Intake Triage &amp; Routing Assistant
-            </h1>
-            <nav
-              aria-label="Sections"
-              className="flex gap-6 text-xs font-semibold uppercase tracking-widest"
-            >
-              <TabButton
-                active={activeTab === "triage"}
-                onClick={() => setActiveTab("triage")}
-              >
-                Triage
-              </TabButton>
-              <TabButton
-                active={activeTab === "queue"}
-                onClick={() => setActiveTab("queue")}
-              >
-                Queue
-                {currentQueue.length > 0 ? (
-                  <span className="ml-1.5 rounded-sm bg-foreground px-1.5 py-0.5 font-mono text-[9px] text-background">
-                    {currentQueue.length}
-                  </span>
-                ) : null}
+        <AppHeader
+          active={activeTab}
+          queueCount={currentQueue.length}
+          onSelectTab={setActiveTab}
+        />
 
-              </TabButton>
-            </nav>
-            {headerControls ? <div className="sm:ml-4">{headerControls}</div> : null}
-          </div>
-          <p className="mt-2 font-serif text-sm italic text-muted-foreground sm:text-base">
-            Decision support — a human reviews every decision.
-          </p>
-        </header>
 
         <main className="flex-1">
           {activeTab === "triage" ? (
@@ -748,7 +729,7 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
                       isClassifying ||
                       batchProgress !== null
                     }
-                    className="inline-flex w-full items-center justify-center gap-2 bg-primary py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground shadow-sm transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex w-full items-center justify-center gap-2 border border-foreground bg-foreground py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-background shadow-sm transition-colors hover:bg-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none disabled:hover:bg-muted"
                   >
                     {isClassifying ? (
                       <>
@@ -986,31 +967,6 @@ function Index({ headerControls }: { headerControls?: React.ReactNode }) {
 
 // ---------- Small UI bits ----------
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={
-        active
-          ? "inline-flex items-center border-b-2 border-foreground pb-1 text-foreground"
-          : "inline-flex items-center border-b-2 border-transparent pb-1 text-muted-foreground transition-colors hover:text-foreground"
-      }
-    >
-      {children}
-    </button>
-  );
-}
-
 function EmptyDecisionState() {
   return (
     <div className="space-y-5">
@@ -1028,11 +984,8 @@ function EmptyDecisionState() {
           <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Confidence Score
           </span>
-          <span className="font-serif text-lg text-muted-foreground/60">
-            0.0%
-          </span>
+          <span className="font-serif text-lg text-muted-foreground/60">—</span>
         </div>
-        <div className="h-1 w-28 bg-muted" />
       </div>
     </div>
   );
