@@ -38,6 +38,9 @@ import type {
 import { AuthGate, ViewerDashboard } from "@/components/AuthGate";
 
 export const Route = createFileRoute("/")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    tab: search.tab === "queue" ? ("queue" as const) : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Intake Triage & Routing Assistant" },
@@ -60,13 +63,9 @@ export const Route = createFileRoute("/")({
 });
 
 function RouteComponent() {
-  return (
-    <AuthGate
-      agentView={({ header }) => <Index headerControls={header} />}
-      viewerView={({ header }) => <ViewerDashboard header={header} />}
-    />
-  );
+  return <AuthGate agentView={() => <Index />} viewerView={() => <ViewerDashboard />} />;
 }
+
 
 // ---------- Constants ----------
 
