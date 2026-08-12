@@ -133,13 +133,16 @@ function computeChanges(
 
 // ---------- Root component ----------
 
-function Index({ headerControls }: { headerControls?: React.ReactNode }) {
+function Index() {
   const { rulebook, verticalId } = useRulebook();
-
+  const search = Route.useSearch();
 
   const [requestText, setRequestText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [activeTab, setActiveTab] = useState<"triage" | "queue">("triage");
+  const [activeTab, setActiveTab] = useState<"triage" | "queue">(
+    search.tab === "queue" ? "queue" : "triage",
+  );
+
   const [decision, setDecision] = useState<Decision | null>(null);
   const [ruling, setRuling] = useState<RuleResult | null>(null);
   const [processedQueue, setProcessedQueue] = useState<QueueItem[]>([]);
