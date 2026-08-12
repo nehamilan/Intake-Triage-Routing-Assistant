@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
-import { useTheme } from "@/hooks/use-theme";
 import { useRulebook } from "@/hooks/use-rulebook";
-import { AccountMenu } from "@/components/AccountMenu";
+import { AppHeader } from "@/components/AppHeader";
 import { loadQueue } from "@/lib/queue-db";
 import type { QueueItem } from "@/lib/queue-types";
 import { STATUS_LABELS } from "@/lib/apply-rules";
@@ -12,19 +11,17 @@ import { CATEGORY_LABELS } from "@/lib/rulebook";
 
 /**
  * AuthGate: redirects unauthenticated visitors to /auth and blocks render
- * until the session + role have hydrated. Also drives the header user chip
- * shared by both agent and viewer surfaces.
+ * until the session + role have hydrated. Header chrome now lives in the
+ * shared <AppHeader />, which each surface renders itself.
  */
 export function AuthGate({
   agentView,
   viewerView,
 }: {
-  agentView: (props: { header: ReactNode }) => ReactNode;
-  viewerView: (props: { header: ReactNode }) => ReactNode;
+  agentView: () => ReactNode;
+  viewerView: () => ReactNode;
 }) {
-  const { user, role, displayName, loading, signOut } = useAuth();
-  const { theme, toggle: toggleTheme } = useTheme();
-  const { rulebook, verticalId, setVertical, availableVerticals } = useRulebook();
+  const { user, role, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -41,66 +38,8 @@ export function AuthGate({
     );
   }
 
-  const name = displayName || user.email || "user";
-  const header = (
-    <div className="flex flex-wrap items-center justify-end gap-2 md:gap-3">
-      {/* Vertical switcher — swaps the RULEBOOK at runtime. */}
-      <label className="flex items-center gap-1.5">
-        <span className="sr-only">Vertical</span>
-        <select
-          aria-label={`Vertical: ${rulebook.label}`}
-          value={verticalId}
-          onChange={(e) =>
-            setVertical(e.target.value as typeof verticalId)
-          }
-          className="border border-border bg-background px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5 focus:border-foreground focus:outline-none"
-        >
-          {availableVerticals.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <Link
-        to="/dashboard"
-        className="border border-border bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
-      >
-        Dashboard
-      </Link>
-      {role === "agent" && (
-        <Link
-          to="/evaluation"
-          className="border border-border bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
-        >
-          Evaluation
-        </Link>
-      )}
-      <div className="ml-auto inline-flex shrink-0 items-center gap-2">
-        {/* Dark-mode toggle — placed immediately before the account icon. */}
-        <button
-          type="button"
-          onClick={toggleTheme}
-          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          className="inline-flex h-7 w-7 items-center justify-center border border-border bg-background text-foreground hover:bg-foreground/5"
-        >
-          <span aria-hidden="true" className="text-xs">
-            {theme === "dark" ? "☀" : "☾"}
-          </span>
-        </button>
-        <AccountMenu
-          name={name}
-          email={user.email}
-          role={role}
-          onSignOut={signOut}
-        />
-      </div>
-    </div>
-  );
-
-  if (role === "agent") return <>{agentView({ header })}</>;
-  return <>{viewerView({ header })}</>;
+  if (role === "agent") return <>{agentView()}</>;
+  return <>{viewerView()}</>;
 }
 
 /**
@@ -108,7 +47,7 @@ export function AuthGate({
  * flat list of finalized decisions. No inputs, no mutation controls.
  * Queue writes are also blocked server-side by RLS.
  */
-export function ViewerDashboard({ header }: { header: ReactNode }) {
+export function ViewerDashboard() {
   const { rulebook, verticalId } = useRulebook();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,19 +82,12 @@ export function ViewerDashboard({ header }: { header: ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-8 sm:px-8 sm:py-10">
-        <header className="mb-8 border-b border-foreground pb-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="font-serif text-2xl font-medium leading-tight sm:text-3xl">
-                Intake Triage — Dashboard
-              </h1>
-              <p className="mt-2 font-serif text-sm italic text-muted-foreground sm:text-base">
-                Read-only view of {rulebook.label}. Ask an agent for edit access.
-              </p>
-            </div>
-            {header}
-          </div>
-        </header>
+        <AppHeader
+          active="triage"
+          title="Intake Triage — Dashboard"
+          subtitle={`Read-only view of ${rulebook.label}. Ask an agent for edit access.`}
+        />
+
 
         <main className="flex-1 space-y-8">
           <section className="grid grid-cols-3 gap-4">
