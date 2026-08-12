@@ -967,31 +967,6 @@ function Index() {
 
 // ---------- Small UI bits ----------
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={
-        active
-          ? "inline-flex items-center border-b-2 border-foreground pb-1 text-foreground"
-          : "inline-flex items-center border-b-2 border-transparent pb-1 text-muted-foreground transition-colors hover:text-foreground"
-      }
-    >
-      {children}
-    </button>
-  );
-}
-
 function EmptyDecisionState() {
   return (
     <div className="space-y-5">
