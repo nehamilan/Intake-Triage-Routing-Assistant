@@ -614,40 +614,12 @@ function Index() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-8 sm:px-8 sm:py-10">
-        <header className="mb-8 border-b border-foreground pb-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-baseline sm:justify-between">
-            <h1 className="font-serif text-2xl font-medium leading-tight text-foreground sm:text-3xl">
-              Intake Triage &amp; Routing Assistant
-            </h1>
-            <nav
-              aria-label="Sections"
-              className="flex gap-6 text-xs font-semibold uppercase tracking-widest"
-            >
-              <TabButton
-                active={activeTab === "triage"}
-                onClick={() => setActiveTab("triage")}
-              >
-                Triage
-              </TabButton>
-              <TabButton
-                active={activeTab === "queue"}
-                onClick={() => setActiveTab("queue")}
-              >
-                Queue
-                {currentQueue.length > 0 ? (
-                  <span className="ml-1.5 rounded-sm bg-foreground px-1.5 py-0.5 font-mono text-[9px] text-background">
-                    {currentQueue.length}
-                  </span>
-                ) : null}
+        <AppHeader
+          active={activeTab}
+          queueCount={currentQueue.length}
+          onSelectTab={setActiveTab}
+        />
 
-              </TabButton>
-            </nav>
-            {headerControls ? <div className="sm:ml-4">{headerControls}</div> : null}
-          </div>
-          <p className="mt-2 font-serif text-sm italic text-muted-foreground sm:text-base">
-            Decision support — a human reviews every decision.
-          </p>
-        </header>
 
         <main className="flex-1">
           {activeTab === "triage" ? (
