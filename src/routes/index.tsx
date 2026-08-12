@@ -36,6 +36,7 @@ import type {
 } from "@/lib/queue-types";
 
 import { AuthGate, ViewerDashboard } from "@/components/AuthGate";
+import { AppHeader } from "@/components/AppHeader";
 
 export const Route = createFileRoute("/")({
   validateSearch: (
@@ -728,7 +729,7 @@ function Index() {
                       isClassifying ||
                       batchProgress !== null
                     }
-                    className="inline-flex w-full items-center justify-center gap-2 bg-primary py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-primary-foreground shadow-sm transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex w-full items-center justify-center gap-2 border border-foreground bg-foreground py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-background shadow-sm transition-colors hover:bg-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none disabled:hover:bg-muted"
                   >
                     {isClassifying ? (
                       <>
@@ -1008,11 +1009,8 @@ function EmptyDecisionState() {
           <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Confidence Score
           </span>
-          <span className="font-serif text-lg text-muted-foreground/60">
-            0.0%
-          </span>
+          <span className="font-serif text-lg text-muted-foreground/60">—</span>
         </div>
-        <div className="h-1 w-28 bg-muted" />
       </div>
     </div>
   );
