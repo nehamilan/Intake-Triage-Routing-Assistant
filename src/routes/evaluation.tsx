@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
+import { AboutPanel } from "@/components/AboutPanel";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -413,6 +414,7 @@ function EvaluationPage() {
             )}
           </main>
         )}
+        <AboutPanel />
       </div>
     </div>
   );

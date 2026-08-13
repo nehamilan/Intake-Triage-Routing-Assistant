@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRulebook } from "@/hooks/use-rulebook";
 import { AppHeader } from "@/components/AppHeader";
+import { AboutPanel } from "@/components/AboutPanel";
 import { CATEGORY_LABELS, type Category } from "@/lib/rulebook";
 
 
@@ -361,6 +362,7 @@ function DashboardPage() {
             )}
           </ChartCard>
         </main>
+        <AboutPanel />
       </div>
     </div>
   );
