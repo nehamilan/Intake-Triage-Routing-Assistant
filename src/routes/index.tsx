@@ -652,16 +652,15 @@ function Index() {
                         {isSupersededView
                           ? `Viewing v${reviewingItem.revision} · superseded`
                           : isRevising
-                            ? `Revising v${reviewingItem.revision} → will save as v${reviewingItem.revision + 1}`
+                            ? `Original request · v${reviewingItem.revision}`
                             : `Finalized · v${reviewingItem.revision}`}
                       </div>
                       <div className="mt-0.5 font-serif text-sm italic text-foreground">
                         {isSupersededView
                           ? `Read-only. A newer revision exists — open it to revise.`
-                          : isRevising
-                            ? `Adjust category, priority, or route, then save as a new revision.`
-                            : `Accepted by ${reviewingItem.reviewer || "—"} · ${formatTime(reviewingItem.timestamp)}. Read-only unless you reopen.`}
+                          : `Request text and attachments are locked.`}
                       </div>
+
                     </div>
                     <button
                       type="button"
@@ -731,7 +730,7 @@ function Index() {
                       isClassifying ||
                       batchProgress !== null
                     }
-                    className="inline-flex w-full items-center justify-center gap-2 border border-foreground bg-foreground py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-background shadow-sm transition-colors hover:bg-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:border-foreground/30 disabled:bg-foreground/30 disabled:text-background disabled:shadow-none disabled:hover:bg-foreground/30"
+                    className="btn-primary w-full py-3 font-mono text-xs font-bold uppercase tracking-[0.2em]"
                   >
                     {isClassifying ? (
                       <>
@@ -876,11 +875,12 @@ function Index() {
                       ? "Triaging your request…"
                       : decision
                         ? reviewingItem
-                          ? isSupersededView
-                            ? `Superseded revision · v${reviewingItem.revision}.`
-                            : isRevising
-                              ? `Revising v${reviewingItem.revision} — saving will append v${reviewingItem.revision + 1}.`
-                              : `Finalized decision · v${reviewingItem.revision}.`
+                        ? isSupersededView
+                          ? `Superseded revision · v${reviewingItem.revision}.`
+                          : isRevising
+                            ? `Revising v${reviewingItem.revision} — adjust category, priority, or route; saving appends v${reviewingItem.revision + 1}.`
+                            : `Finalized decision · v${reviewingItem.revision}.`
+
                           : "Proposed decision — pending human review."
                         : "No request triaged yet."}
                   </p>
