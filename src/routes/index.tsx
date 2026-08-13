@@ -1197,7 +1197,20 @@ function DecisionCard({
 
   return (
     <div className="space-y-5">
+      {/* Model output block — visually muted so the AI proposal never reads
+          as the human's decision. The editable draft below sits on card
+          white to signal "this is where a person decides". */}
+      <div className="space-y-5 border border-border bg-muted/40 p-4">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 border border-border bg-background px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            AI Proposed
+          </span>
+          <span className="font-serif text-xs italic text-muted-foreground">
+            Model output plus deterministic guardrails — read-only.
+          </span>
+        </div>
       <div
+
         className={`flex items-start gap-3 border px-4 py-3 ${statusStyle.badge}`}
       >
         <span
@@ -1345,6 +1358,8 @@ function DecisionCard({
           </>
         )}
       </div>
+      </div>
+
 
       {/* Review controls — mode-dependent */}
       <div className="mt-6 border-t border-border pt-6">
