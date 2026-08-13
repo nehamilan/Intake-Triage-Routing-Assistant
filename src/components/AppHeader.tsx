@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { useRulebook } from "@/hooks/use-rulebook";
 import { AccountMenu } from "@/components/AccountMenu";
 import type { VerticalId } from "@/lib/rulebook";
+import { publicIdentity } from "@/lib/demo-accounts";
 
 export type AppTab = "triage" | "queue" | "dashboard" | "evaluation";
 
@@ -34,7 +35,8 @@ export function AppHeader({
   const { rulebook, verticalId, setVertical, availableVerticals } =
     useRulebook();
 
-  const name = displayName || user?.email || "user";
+  // Public-safe identity only: personal emails are never rendered.
+  const name = publicIdentity(user?.email, displayName, role).name;
   const roleLabel =
     role === "agent" ? "Agent" : role === "viewer" ? "Viewer" : "No role";
 
