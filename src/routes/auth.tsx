@@ -123,9 +123,13 @@ function AuthPage() {
               key={role}
               type="button"
               onClick={() => handleDemo(role)}
-              disabled={busy || demoBusy !== null}
-              className="w-full bg-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest text-background hover:opacity-90 disabled:opacity-50"
+              disabled={locked}
+              aria-busy={demoBusy === role}
+              className="flex w-full items-center justify-center gap-2 bg-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest text-background hover:opacity-90"
             >
+              {demoBusy === role && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              )}
               {demoBusy === role ? "Signing in…" : DEMO_ACCOUNTS[role].label}
             </button>
           ))}
