@@ -1615,7 +1615,7 @@ function DecisionCard({
                         ? "Acknowledge the safety escalation bypass to continue."
                         : undefined
                 }
-                className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-primary px-6 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.2em]"
               >
                 {mode === "revising" ? "Save as revision" : "Save Override"}
               </button>
