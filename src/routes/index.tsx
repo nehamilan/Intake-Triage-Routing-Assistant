@@ -2587,7 +2587,7 @@ function AttachmentThumb({ attachment }: { attachment: Attachment }) {
 // ---------- About / how it works ----------
 
 function AboutPanel() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   return (
     <section
       aria-label="About this system"
@@ -2597,10 +2597,13 @@ function AboutPanel() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between px-4 py-3 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-foreground/5"
+        className="flex w-full cursor-pointer items-center gap-2 px-4 py-3 text-left font-mono text-[10px] font-bold uppercase tracking-widest text-foreground transition-colors hover:bg-foreground/5"
       >
+        <ChevronDown
+          aria-hidden="true"
+          className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`}
+        />
         <span>About · how it works</span>
-        <span aria-hidden="true">{open ? "−" : "+"}</span>
       </button>
       {open ? (
         <div className="space-y-3 border-t border-dashed border-border px-4 py-4 font-serif text-sm leading-relaxed text-foreground">
