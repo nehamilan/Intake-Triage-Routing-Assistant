@@ -1051,28 +1051,28 @@ const STATUS_STYLES: Record<
     dot: "bg-green-600",
   },
   escalated_low_confidence: {
-    badge: "bg-purple-50 border-purple-300 text-purple-800",
-    dot: "bg-purple-600",
+    badge: "bg-orange-50 border-orange-300 text-orange-800",
+    dot: "bg-orange-500",
   },
   escalated_attachment_mismatch: {
-    badge: "bg-purple-50 border-purple-300 text-purple-800",
-    dot: "bg-purple-600",
+    badge: "bg-orange-50 border-orange-300 text-orange-800",
+    dot: "bg-orange-500",
   },
   escalated_guardrail: {
-    badge: "bg-purple-50 border-purple-300 text-purple-800",
-    dot: "bg-purple-600",
+    badge: "bg-orange-50 border-orange-300 text-orange-800",
+    dot: "bg-orange-500",
   },
   escalated_privacy_incident: {
-    badge: "bg-purple-50 border-purple-300 text-purple-800",
-    dot: "bg-purple-600",
+    badge: "bg-orange-50 border-orange-300 text-orange-800",
+    dot: "bg-orange-500",
   },
   escalated_fraud: {
     badge: "bg-red-50 border-red-300 text-red-800",
     dot: "bg-red-600",
   },
   escalated_missing_embargo_date: {
-    badge: "bg-purple-50 border-purple-300 text-purple-800",
-    dot: "bg-purple-600",
+    badge: "bg-orange-50 border-orange-300 text-orange-800",
+    dot: "bg-orange-500",
   },
   escalated_parse_failure: {
     badge: "bg-red-50 border-red-300 text-red-800",
@@ -1217,13 +1217,13 @@ function DecisionCard({
           const isParseFailure = ruling.status === "escalated_parse_failure";
           const wrapCls = isParseFailure
             ? "border-l-4 border-red-600 bg-red-50/60 p-4"
-            : "border-l-4 border-purple-600 bg-purple-50/60 p-4";
+            : "border-l-4 border-orange-500 bg-orange-50/60 p-4";
           const labelCls = isParseFailure
             ? "mb-2 font-mono text-[10px] font-bold uppercase tracking-widest text-red-800"
-            : "mb-2 font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800";
+            : "mb-2 font-mono text-[10px] font-bold uppercase tracking-widest text-orange-800";
           const itemCls = isParseFailure
             ? "font-serif text-sm leading-snug text-red-900"
-            : "font-serif text-sm leading-snug text-purple-900";
+            : "font-serif text-sm leading-snug text-orange-900";
           return (
             <div className={wrapCls}>
               <div className={labelCls}>Guardrail Flags</div>
@@ -1820,10 +1820,29 @@ function QueueView({
       ) : null}
       {/* Counters — always over current versions. Revisions surface below. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Stat label="Current" value={allRows.length} />
-        <Stat label="Auto-routed" value={autoRoutedCount} tone="green" />
-        <Stat label="Escalated" value={escalatedCount} tone="purple" />
-        <Stat label="Overridden" value={overriddenCount} />
+        <Stat
+          label="Current"
+          value={allRows.length}
+          hint={`Latest version of each request`}
+        />
+        <Stat
+          label="Auto-routed"
+          value={autoRoutedCount}
+          tone="green"
+          hint={`of ${allRows.length} request${allRows.length === 1 ? "" : "s"}`}
+        />
+        <Stat
+          label="Escalated"
+          value={escalatedCount}
+          tone="orange"
+          hint="Not auto-routed"
+        />
+        <Stat
+          label="Overridden"
+          value={overriddenCount}
+          tone="purple"
+          hint="Human-changed"
+        />
       </div>
       <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
         {filtersActive
@@ -1948,7 +1967,7 @@ function QueueView({
                       </span>
                       {item.reviewer ? (
                         <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                          by {item.reviewer}
+                          Triaged by {item.reviewer}
                         </span>
                       ) : null}
                     </div>
@@ -1956,20 +1975,18 @@ function QueueView({
                   <Td>
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
-                        <span
-                          className={`inline-flex items-center border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${
-                            item.revision > 1
-                              ? "border-amber-300 bg-amber-50 text-amber-800"
-                              : "border-border bg-background text-muted-foreground"
-                          }`}
-                          title={
-                            totalRevisions > 1
-                              ? `Revised ${totalRevisions - 1} time${totalRevisions - 1 === 1 ? "" : "s"} — open to view history`
-                              : undefined
-                          }
-                        >
-                          v{item.revision}
-                        </span>
+                        {item.revision > 1 || totalRevisions > 1 ? (
+                          <span
+                            className="inline-flex items-center border border-purple-300 bg-purple-50 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-purple-800"
+                            title={
+                              totalRevisions > 1
+                                ? `Revised ${totalRevisions - 1} time${totalRevisions - 1 === 1 ? "" : "s"} — open to view history`
+                                : undefined
+                            }
+                          >
+                            v{item.revision}
+                          </span>
+                        ) : null}
                         <span className="line-clamp-2 font-serif text-sm text-foreground">
                           {shorten(item.requestText, 90)}
                         </span>
@@ -2202,23 +2219,32 @@ function Stat({
   label,
   value,
   tone,
+  hint,
 }: {
   label: string;
   value: number;
-  tone?: "green" | "purple";
+  tone?: "green" | "purple" | "orange";
+  hint?: string;
 }) {
   const toneClass =
     tone === "green"
       ? "text-green-700"
       : tone === "purple"
         ? "text-purple-700"
-        : "text-foreground";
+        : tone === "orange"
+          ? "text-orange-700"
+          : "text-foreground";
   return (
     <div className="border border-border bg-card p-4">
       <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
         {label}
       </div>
       <div className={`mt-1 font-serif text-2xl ${toneClass}`}>{value}</div>
+      {hint ? (
+        <div className="mt-1 font-serif text-xs italic text-muted-foreground">
+          {hint}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2587,7 +2613,7 @@ function AttachmentThumb({ attachment }: { attachment: Attachment }) {
 
 // ---------- About / how it works ----------
 
-function AboutPanel() {
+export function AboutPanel() {
   const [open, setOpen] = useState(true);
   return (
     <section
