@@ -146,3 +146,34 @@
     color: var(--color-foreground);
   }
 }
+
+/* Single source of truth for primary actions across the app. Enabled = ink
+   fill with paper text; disabled = muted gray with reduced opacity. */
+@utility btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid var(--foreground);
+  background-color: var(--foreground);
+  color: var(--background);
+  transition: background-color 150ms ease, opacity 150ms ease;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background-color: color-mix(in oklab, var(--foreground) 85%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--foreground);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    background-color: var(--muted);
+    border-color: var(--border);
+    color: var(--muted-foreground);
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}

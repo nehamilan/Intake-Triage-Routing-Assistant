@@ -301,7 +301,7 @@ function EvaluationPage() {
                   type="button"
                   disabled={!rows || running}
                   onClick={runEvaluation}
-                  className="border border-foreground bg-foreground px-4 py-1.5 font-mono text-[11px] font-bold uppercase tracking-widest text-background hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="btn-primary px-4 py-1.5 font-mono text-[11px] font-bold uppercase tracking-widest"
                 >
                   {running ? `Running… ${progress.done}/${progress.total}` : "Run evaluation"}
                 </button>

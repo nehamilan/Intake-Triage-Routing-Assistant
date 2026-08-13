@@ -4,6 +4,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ChevronDown } from "lucide-react";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+import {
   RULEBOOK,
   CATEGORY_LABELS,
   type Category,
@@ -652,16 +664,15 @@ function Index() {
                         {isSupersededView
                           ? `Viewing v${reviewingItem.revision} · superseded`
                           : isRevising
-                            ? `Revising v${reviewingItem.revision} → will save as v${reviewingItem.revision + 1}`
+                            ? `Original request · v${reviewingItem.revision}`
                             : `Finalized · v${reviewingItem.revision}`}
                       </div>
                       <div className="mt-0.5 font-serif text-sm italic text-foreground">
                         {isSupersededView
                           ? `Read-only. A newer revision exists — open it to revise.`
-                          : isRevising
-                            ? `Adjust category, priority, or route, then save as a new revision.`
-                            : `Accepted by ${reviewingItem.reviewer || "—"} · ${formatTime(reviewingItem.timestamp)}. Read-only unless you reopen.`}
+                          : `Request text and attachments are locked.`}
                       </div>
+
                     </div>
                     <button
                       type="button"
@@ -731,7 +742,7 @@ function Index() {
                       isClassifying ||
                       batchProgress !== null
                     }
-                    className="inline-flex w-full items-center justify-center gap-2 border border-foreground bg-foreground py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-background shadow-sm transition-colors hover:bg-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:border-foreground/30 disabled:bg-foreground/30 disabled:text-background disabled:shadow-none disabled:hover:bg-foreground/30"
+                    className="btn-primary w-full py-3 font-mono text-xs font-bold uppercase tracking-[0.2em]"
                   >
                     {isClassifying ? (
                       <>
@@ -876,11 +887,12 @@ function Index() {
                       ? "Triaging your request…"
                       : decision
                         ? reviewingItem
-                          ? isSupersededView
-                            ? `Superseded revision · v${reviewingItem.revision}.`
-                            : isRevising
-                              ? `Revising v${reviewingItem.revision} — saving will append v${reviewingItem.revision + 1}.`
-                              : `Finalized decision · v${reviewingItem.revision}.`
+                        ? isSupersededView
+                          ? `Superseded revision · v${reviewingItem.revision}.`
+                          : isRevising
+                            ? `Revising v${reviewingItem.revision} — adjust category, priority, or route; saving appends v${reviewingItem.revision + 1}.`
+                            : `Finalized decision · v${reviewingItem.revision}.`
+
                           : "Proposed decision — pending human review."
                         : "No request triaged yet."}
                   </p>
@@ -1125,6 +1137,9 @@ function DecisionCard({
   // naturally between draft/revising sessions.
   const [reason, setReason] = useState("");
   const [ackGuardrail, setAckGuardrail] = useState(false);
+  // Reopening reverses an audited decision, so it goes through a confirm step.
+  const [confirmReopen, setConfirmReopen] = useState(false);
+
 
   const pri = PRIORITY_STYLES[ruling.priority];
   const pct = Math.round(decision.confidence * 100);
@@ -1197,7 +1212,20 @@ function DecisionCard({
 
   return (
     <div className="space-y-5">
+      {/* Model output block — visually muted so the AI proposal never reads
+          as the human's decision. The editable draft below sits on card
+          white to signal "this is where a person decides". */}
+      <div className="space-y-5 border border-border bg-muted/40 p-4">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 border border-border bg-background px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            AI Proposed
+          </span>
+          <span className="font-serif text-xs italic text-muted-foreground">
+            Model output plus deterministic guardrails — read-only.
+          </span>
+        </div>
       <div
+
         className={`flex items-start gap-3 border px-4 py-3 ${statusStyle.badge}`}
       >
         <span
@@ -1345,6 +1373,8 @@ function DecisionCard({
           </>
         )}
       </div>
+      </div>
+
 
       {/* Review controls — mode-dependent */}
       <div className="mt-6 border-t border-border pt-6">
@@ -1372,13 +1402,39 @@ function DecisionCard({
               ) : null}
             </p>
             <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={onReopen}
-                className="border border-foreground bg-background py-2.5 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
-              >
-                Reopen for revision
-              </button>
+              <AlertDialog open={confirmReopen} onOpenChange={setConfirmReopen}>
+                <AlertDialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="border border-foreground bg-background py-2.5 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
+                  >
+                    Reopen for revision
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="font-serif">
+                      Reopen this finalized decision?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="font-serif">
+                      This reverses an audited decision. The current version
+                      stays in the log; saving will append a new revision
+                      attributed to you.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">
+                      Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={onReopen}
+                      className="btn-primary px-4 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.2em]"
+                    >
+                      Reopen for revision
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         ) : !editing ? (
@@ -1388,7 +1444,6 @@ function DecisionCard({
               value={reason}
               onChange={setReason}
               required={false}
-              helper="Optional — add context for the audit log."
             />
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
               <button
@@ -1403,21 +1458,30 @@ function DecisionCard({
                 onClick={acceptAsIs}
                 disabled={!reviewerReady}
                 title={reviewerReady ? undefined : "Enter your name to accept."}
-                className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-primary px-6 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.2em]"
               >
                 Accept &amp; Send to Queue
               </button>
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              {mode === "revising" ? "Revision Draft" : "Override Draft"}
+          <div className="space-y-4 border border-border bg-card p-4">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center border border-foreground bg-background px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground">
+                Human decision
+              </span>
+              <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                {mode === "revising" ? "Revision Draft" : "Override Draft"}
+              </span>
             </div>
+
 
             <ReviewerField value={reviewer} onChange={onReviewerChange} />
 
-            <OverrideField label="Category">
+            <OverrideField
+              label="Category"
+              changed={draftCategory !== decision.category}
+            >
               <select
                 value={draftCategory}
                 onChange={(e) => setDraftCategory(e.target.value as Category)}
@@ -1441,7 +1505,10 @@ function DecisionCard({
               </select>
             </OverrideField>
 
-            <OverrideField label="Priority">
+            <OverrideField
+              label="Priority"
+              changed={draftPriority !== ruling.priority}
+            >
               <select
                 value={draftPriority}
                 onChange={(e) => setDraftPriority(e.target.value as Priority)}
@@ -1460,7 +1527,10 @@ function DecisionCard({
               </select>
             </OverrideField>
 
-            <OverrideField label="Route">
+            <OverrideField
+              label="Route"
+              changed={draftRoute !== ruling.finalRoute}
+            >
               <select
                 value={draftRoute}
                 onChange={(e) => setDraftRoute(e.target.value)}
@@ -1506,13 +1576,12 @@ function DecisionCard({
               onChange={setReason}
               required={overrideReasonRequired}
               helper={
-                overrideReasonRequired
-                  ? willBypassGuardrail
-                    ? "Required — explain why bypassing the safety escalation is appropriate."
-                    : "Required — explain why you are changing this decision."
-                  : "Optional — add context for the audit log."
+                willBypassGuardrail
+                  ? "Required — explain why bypassing the safety escalation is appropriate."
+                  : "Required — explain why you are changing this decision."
               }
             />
+
 
             <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
               <button
@@ -1546,7 +1615,7 @@ function DecisionCard({
                         ? "Acknowledge the safety escalation bypass to continue."
                         : undefined
                 }
-                className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-primary px-6 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.2em]"
               >
                 {mode === "revising" ? "Save as revision" : "Save Override"}
               </button>
@@ -1567,8 +1636,9 @@ function ReasonField({
   value: string;
   onChange: (v: string) => void;
   required: boolean;
-  helper: string;
+  helper?: string;
 }) {
+
   const empty = value.trim().length === 0;
   return (
     <div className="flex flex-col gap-1.5">
@@ -1605,16 +1675,21 @@ function ReasonField({
             : "border-border focus:border-foreground"
         }`}
       />
-      <p
-        className={`font-serif text-xs italic ${
-          required && empty ? "text-red-700" : "text-muted-foreground"
-        }`}
-      >
-        {helper}
-      </p>
+      {/* Caption only when the reason is mandatory — the label and
+          placeholder already carry the optional case. */}
+      {required && helper ? (
+        <p
+          className={`font-serif text-xs italic ${
+            empty ? "text-red-700" : "text-muted-foreground"
+          }`}
+        >
+          {helper}
+        </p>
+      ) : null}
     </div>
   );
 }
+
 
 
 function ReviewerField({
@@ -1625,41 +1700,67 @@ function ReviewerField({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-4">
+    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-4">
       <label
         htmlFor="reviewer-name"
-        className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
+        className="mt-2.5 font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
       >
         Reviewer
       </label>
-      <input
-        id="reviewer-name"
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Your name (required to finalize)"
-        className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
-      />
+      <div className="flex flex-col gap-1">
+        <input
+          id="reviewer-name"
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Your name"
+          aria-describedby="reviewer-name-hint"
+          className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
+        />
+        {/* Persistent requirement caption — placeholders vanish on input. */}
+        <p
+          id="reviewer-name-hint"
+          className={`font-mono text-[10px] uppercase tracking-widest ${
+            value.trim().length === 0 ? "text-red-700" : "text-muted-foreground"
+          }`}
+        >
+          Required to finalize
+        </p>
+      </div>
     </div>
   );
 }
 
 function OverrideField({
   label,
+  changed = false,
   children,
 }: {
   label: string;
+  changed?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-4">
+    <div
+      className={`grid grid-cols-[110px_minmax(0,1fr)] items-center gap-4 ${
+        changed ? "border-l-4 border-amber-500 bg-amber-50/50 py-2 pl-3" : ""
+      }`}
+    >
       <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
         {label}
       </span>
-      {children}
+      <div className="flex items-center gap-2">
+        <div className="flex-1">{children}</div>
+        {changed ? (
+          <span className="shrink-0 border border-amber-500 bg-amber-100 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-amber-800">
+            Changed
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
+
 
 // ---------- Queue view ----------
 
