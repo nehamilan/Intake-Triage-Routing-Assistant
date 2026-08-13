@@ -213,17 +213,13 @@ function AuthPage() {
             onChange={(e) => setPassword(e.target.value)}
             className="w-full border border-border bg-background px-3 py-2 text-sm"
           />
-          {error && (
-            <p className="border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800">
-              {error}
-            </p>
-          )}
           <button
             type="submit"
-            disabled={busy || demoBusy !== null}
-            className="w-full bg-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest text-background hover:opacity-90 disabled:opacity-50"
+            disabled={locked}
+            className="flex w-full items-center justify-center gap-2 bg-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest text-background hover:opacity-90"
           >
-            {busy ? "..." : mode === "signin" ? "Sign in" : "Create account"}
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+            {busy ? "Signing in…" : mode === "signin" ? "Sign in" : "Create account"}
           </button>
         </form>
 
