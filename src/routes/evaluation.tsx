@@ -413,8 +413,8 @@ function EvaluationPage() {
               </>
             )}
           </main>
-          <AboutPanel />
         )}
+        <AboutPanel />
       </div>
     </div>
   );
