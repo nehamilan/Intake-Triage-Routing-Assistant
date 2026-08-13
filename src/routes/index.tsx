@@ -4,6 +4,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ChevronDown } from "lucide-react";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+import {
   RULEBOOK,
   CATEGORY_LABELS,
   type Category,
@@ -1125,6 +1137,9 @@ function DecisionCard({
   // naturally between draft/revising sessions.
   const [reason, setReason] = useState("");
   const [ackGuardrail, setAckGuardrail] = useState(false);
+  // Reopening reverses an audited decision, so it goes through a confirm step.
+  const [confirmReopen, setConfirmReopen] = useState(false);
+
 
   const pri = PRIORITY_STYLES[ruling.priority];
   const pct = Math.round(decision.confidence * 100);
