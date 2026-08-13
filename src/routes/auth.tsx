@@ -139,11 +139,34 @@ function AuthPage() {
           </p>
         </div>
 
+        {error && (
+          <p className="border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800">
+            {error}
+          </p>
+        )}
+
+        {!showOwn && (
+          <p className="text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setShowOwn(true);
+                setError(null);
+              }}
+              className="font-serif text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              Sign in with your own account
+            </button>
+          </p>
+        )}
+
+        {showOwn && (
+        <div className="space-y-6">
         <button
           type="button"
           onClick={handleGoogle}
-          disabled={busy || demoBusy !== null}
-          className="w-full border border-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:bg-foreground hover:text-background disabled:opacity-50"
+          disabled={locked}
+          className="flex w-full items-center justify-center gap-2 border border-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:bg-foreground hover:text-background"
         >
           Continue with Google
         </button>
