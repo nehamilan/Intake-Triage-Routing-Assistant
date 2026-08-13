@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/hooks/use-auth";
@@ -28,6 +29,8 @@ function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [demoBusy, setDemoBusy] = useState<DemoRole | null>(null);
+  const [showOwn, setShowOwn] = useState(false);
+  const locked = busy || demoBusy !== null;
   const ensureDemo = useServerFn(ensureDemoAccount);
 
   const handleDemo = async (role: DemoRole) => {
@@ -121,9 +124,13 @@ function AuthPage() {
               key={role}
               type="button"
               onClick={() => handleDemo(role)}
-              disabled={busy || demoBusy !== null}
-              className="w-full bg-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest text-background hover:opacity-90 disabled:opacity-50"
+              disabled={locked}
+              aria-busy={demoBusy === role}
+              className="flex w-full items-center justify-center gap-2 bg-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest text-background hover:opacity-90"
             >
+              {demoBusy === role && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              )}
               {demoBusy === role ? "Signing in…" : DEMO_ACCOUNTS[role].label}
             </button>
           ))}
@@ -133,11 +140,34 @@ function AuthPage() {
           </p>
         </div>
 
+        {error && (
+          <p className="border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800">
+            {error}
+          </p>
+        )}
+
+        {!showOwn && (
+          <p className="text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setShowOwn(true);
+                setError(null);
+              }}
+              className="font-serif text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              Sign in with your own account
+            </button>
+          </p>
+        )}
+
+        {showOwn && (
+        <div className="space-y-6">
         <button
           type="button"
           onClick={handleGoogle}
-          disabled={busy || demoBusy !== null}
-          className="w-full border border-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:bg-foreground hover:text-background disabled:opacity-50"
+          disabled={locked}
+          className="flex w-full items-center justify-center gap-2 border border-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:bg-foreground hover:text-background"
         >
           Continue with Google
         </button>
@@ -184,17 +214,13 @@ function AuthPage() {
             onChange={(e) => setPassword(e.target.value)}
             className="w-full border border-border bg-background px-3 py-2 text-sm"
           />
-          {error && (
-            <p className="border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800">
-              {error}
-            </p>
-          )}
           <button
             type="submit"
-            disabled={busy || demoBusy !== null}
-            className="w-full bg-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest text-background hover:opacity-90 disabled:opacity-50"
+            disabled={locked}
+            className="flex w-full items-center justify-center gap-2 bg-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest text-background hover:opacity-90"
           >
-            {busy ? "..." : mode === "signin" ? "Sign in" : "Create account"}
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+            {busy ? "Signing in…" : mode === "signin" ? "Sign in" : "Create account"}
           </button>
         </form>
 
@@ -214,6 +240,8 @@ function AuthPage() {
         <p className="text-center font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
           New accounts start as viewer (read-only)
         </p>
+        </div>
+        )}
       </div>
     </div>
   );
