@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { ChevronDown } from "lucide-react";
 import {
   RULEBOOK,
   CATEGORY_LABELS,
@@ -729,7 +730,7 @@ function Index() {
                       isClassifying ||
                       batchProgress !== null
                     }
-                    className="inline-flex w-full items-center justify-center gap-2 border border-foreground bg-foreground py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-background shadow-sm transition-colors hover:bg-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none disabled:hover:bg-muted"
+                    className="inline-flex w-full items-center justify-center gap-2 border border-foreground bg-foreground py-3 font-mono text-xs font-bold uppercase tracking-[0.2em] text-background shadow-sm transition-colors hover:bg-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:border-foreground/30 disabled:bg-foreground/30 disabled:text-background disabled:shadow-none disabled:hover:bg-foreground/30"
                   >
                     {isClassifying ? (
                       <>
@@ -2629,9 +2630,10 @@ function AboutPanel() {
             preserved, never mutated — with reviewer, timestamp, diff and
             reason.
           </p>
-          <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-            Rulebook is data, not code. Swap the vertical in the header to
-            reconfigure categories, routes and guardrails at runtime.
+          <p className="border-l-4 border-foreground bg-foreground/5 px-4 py-3 font-serif text-sm leading-relaxed text-foreground">
+            <span className="font-semibold">Rulebook is data, not code.</span>{" "}
+            Swap the vertical in the header to reconfigure categories, routes
+            and guardrails at runtime.
           </p>
         </div>
       ) : null}
