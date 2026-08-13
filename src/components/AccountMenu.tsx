@@ -7,6 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { publicIdentity } from "@/lib/demo-accounts";
 
 /**
  * Compact circular avatar that opens a dropdown containing identity + Sign out.
@@ -23,7 +24,11 @@ export function AccountMenu({
   role?: string | null;
   onSignOut: () => void;
 }) {
-  const initials = getInitials(name || email || "?");
+  // Never render a real personal identity: fall back to the demo persona.
+  const identity = publicIdentity(email, name, role);
+  const shownName = identity.name;
+  const shownEmail = identity.email;
+  const initials = getInitials(shownName);
   const ringClass =
     role === "agent"
       ? "ring-foreground"
@@ -45,11 +50,11 @@ export function AccountMenu({
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="flex flex-col gap-0.5">
           <span className="truncate font-serif text-sm font-normal text-foreground">
-            {name}
+            {shownName}
           </span>
-          {email && email !== name ? (
+          {shownEmail ? (
             <span className="truncate font-mono text-[10px] normal-case tracking-normal text-muted-foreground">
-              {email}
+              {shownEmail}
             </span>
           ) : null}
           <span className="mt-1 font-mono text-[9px] font-bold uppercase tracking-widest text-muted-foreground">

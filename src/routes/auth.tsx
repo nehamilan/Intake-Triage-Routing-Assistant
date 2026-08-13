@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/hooks/use-auth";
+import { useServerFn } from "@tanstack/react-start";
+import { ensureDemoAccount } from "@/lib/demo-auth.functions";
+import { DEMO_ACCOUNTS, DEMO_PASSWORD, type DemoRole } from "@/lib/demo-accounts";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -24,6 +27,27 @@ function AuthPage() {
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [demoBusy, setDemoBusy] = useState<DemoRole | null>(null);
+  const ensureDemo = useServerFn(ensureDemoAccount);
+
+  const handleDemo = async (role: DemoRole) => {
+    setError(null);
+    setDemoBusy(role);
+    try {
+      await ensureDemo({ data: { role } });
+      const { error } = await supabase.auth.signInWithPassword({
+        email: DEMO_ACCOUNTS[role].email,
+        password: DEMO_PASSWORD,
+      });
+      if (error) throw error;
+      router.invalidate();
+      navigate({ to: "/" });
+    } catch {
+      setError("Could not start the demo session. Please try again.");
+    } finally {
+      setDemoBusy(null);
+    }
+  };
 
   useEffect(() => {
     if (!loading && user) navigate({ to: "/" });
@@ -88,10 +112,31 @@ function AuthPage() {
           </p>
         </div>
 
+        <div className="space-y-2 border border-border p-3">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Explore instantly — no signup
+          </p>
+          {(["agent", "viewer"] as DemoRole[]).map((role) => (
+            <button
+              key={role}
+              type="button"
+              onClick={() => handleDemo(role)}
+              disabled={busy || demoBusy !== null}
+              className="w-full bg-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest text-background hover:opacity-90 disabled:opacity-50"
+            >
+              {demoBusy === role ? "Signing in…" : DEMO_ACCOUNTS[role].label}
+            </button>
+          ))}
+          <p className="font-serif text-xs italic text-muted-foreground">
+            Agent can triage and review. Viewer is read-only — enforced by database
+            permissions, not hidden buttons.
+          </p>
+        </div>
+
         <button
           type="button"
           onClick={handleGoogle}
-          disabled={busy}
+          disabled={busy || demoBusy !== null}
           className="w-full border border-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest hover:bg-foreground hover:text-background disabled:opacity-50"
         >
           Continue with Google
@@ -121,6 +166,8 @@ function AuthPage() {
           <input
             type="email"
             required
+            autoComplete="off"
+            name="intake-email"
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -129,6 +176,8 @@ function AuthPage() {
           <input
             type="password"
             required
+            autoComplete="new-password"
+            name="intake-password"
             minLength={6}
             placeholder="Password (min 6 chars)"
             value={password}
@@ -142,7 +191,7 @@ function AuthPage() {
           )}
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || demoBusy !== null}
             className="w-full bg-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest text-background hover:opacity-90 disabled:opacity-50"
           >
             {busy ? "..." : mode === "signin" ? "Sign in" : "Create account"}
