@@ -1387,13 +1387,39 @@ function DecisionCard({
               ) : null}
             </p>
             <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={onReopen}
-                className="border border-foreground bg-background py-2.5 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
-              >
-                Reopen for revision
-              </button>
+              <AlertDialog open={confirmReopen} onOpenChange={setConfirmReopen}>
+                <AlertDialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="border border-foreground bg-background py-2.5 px-4 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-foreground/5"
+                  >
+                    Reopen for revision
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="font-serif">
+                      Reopen this finalized decision?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="font-serif">
+                      This reverses an audited decision. The current version
+                      stays in the log; saving will append a new revision
+                      attributed to you.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">
+                      Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={onReopen}
+                      className="btn-primary px-4 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.2em]"
+                    >
+                      Reopen for revision
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         ) : !editing ? (
@@ -1403,7 +1429,6 @@ function DecisionCard({
               value={reason}
               onChange={setReason}
               required={false}
-              helper="Optional — add context for the audit log."
             />
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
               <button
@@ -1418,17 +1443,23 @@ function DecisionCard({
                 onClick={acceptAsIs}
                 disabled={!reviewerReady}
                 title={reviewerReady ? undefined : "Enter your name to accept."}
-                className="bg-primary py-2.5 px-6 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-primary-foreground transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-primary px-6 py-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.2em]"
               >
                 Accept &amp; Send to Queue
               </button>
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              {mode === "revising" ? "Revision Draft" : "Override Draft"}
+          <div className="space-y-4 border border-border bg-card p-4">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center border border-foreground bg-background px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground">
+                Human decision
+              </span>
+              <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                {mode === "revising" ? "Revision Draft" : "Override Draft"}
+              </span>
             </div>
+
 
             <ReviewerField value={reviewer} onChange={onReviewerChange} />
 
