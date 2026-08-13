@@ -28,6 +28,8 @@ function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [demoBusy, setDemoBusy] = useState<DemoRole | null>(null);
+  const [showOwn, setShowOwn] = useState(false);
+  const locked = busy || demoBusy !== null;
   const ensureDemo = useServerFn(ensureDemoAccount);
 
   const handleDemo = async (role: DemoRole) => {
