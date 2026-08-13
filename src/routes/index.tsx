@@ -1636,8 +1636,9 @@ function ReasonField({
   value: string;
   onChange: (v: string) => void;
   required: boolean;
-  helper: string;
+  helper?: string;
 }) {
+
   const empty = value.trim().length === 0;
   return (
     <div className="flex flex-col gap-1.5">
@@ -1674,16 +1675,21 @@ function ReasonField({
             : "border-border focus:border-foreground"
         }`}
       />
-      <p
-        className={`font-serif text-xs italic ${
-          required && empty ? "text-red-700" : "text-muted-foreground"
-        }`}
-      >
-        {helper}
-      </p>
+      {/* Caption only when the reason is mandatory — the label and
+          placeholder already carry the optional case. */}
+      {required && helper ? (
+        <p
+          className={`font-serif text-xs italic ${
+            empty ? "text-red-700" : "text-muted-foreground"
+          }`}
+        >
+          {helper}
+        </p>
+      ) : null}
     </div>
   );
 }
+
 
 
 function ReviewerField({
@@ -1694,41 +1700,67 @@ function ReviewerField({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-4">
+    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-start gap-4">
       <label
         htmlFor="reviewer-name"
-        className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
+        className="mt-2.5 font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
       >
         Reviewer
       </label>
-      <input
-        id="reviewer-name"
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Your name (required to finalize)"
-        className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
-      />
+      <div className="flex flex-col gap-1">
+        <input
+          id="reviewer-name"
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Your name"
+          aria-describedby="reviewer-name-hint"
+          className="w-full border border-border bg-background px-3 py-2 font-serif text-sm text-foreground focus:border-foreground focus:outline-none"
+        />
+        {/* Persistent requirement caption — placeholders vanish on input. */}
+        <p
+          id="reviewer-name-hint"
+          className={`font-mono text-[10px] uppercase tracking-widest ${
+            value.trim().length === 0 ? "text-red-700" : "text-muted-foreground"
+          }`}
+        >
+          Required to finalize
+        </p>
+      </div>
     </div>
   );
 }
 
 function OverrideField({
   label,
+  changed = false,
   children,
 }: {
   label: string;
+  changed?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-4">
+    <div
+      className={`grid grid-cols-[110px_minmax(0,1fr)] items-center gap-4 ${
+        changed ? "border-l-4 border-amber-500 bg-amber-50/50 py-2 pl-3" : ""
+      }`}
+    >
       <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
         {label}
       </span>
-      {children}
+      <div className="flex items-center gap-2">
+        <div className="flex-1">{children}</div>
+        {changed ? (
+          <span className="shrink-0 border border-amber-500 bg-amber-100 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-amber-800">
+            Changed
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
+
 
 // ---------- Queue view ----------
 
