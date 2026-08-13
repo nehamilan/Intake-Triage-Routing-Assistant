@@ -131,21 +131,29 @@ function AuthPage() {
             <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
               Explore instantly — no signup
             </p>
-            {(["agent", "viewer"] as DemoRole[]).map((role) => (
-              <button
-                key={role}
-                type="button"
-                onClick={() => handleDemo(role)}
-                disabled={locked}
-                aria-busy={demoBusy === role}
-                className="flex w-full items-center justify-center gap-2 bg-foreground px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest text-background hover:opacity-90"
-              >
-                {demoBusy === role && (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                )}
-                {demoBusy === role ? "Signing in…" : DEMO_ACCOUNTS[role].label}
-              </button>
-            ))}
+            {(["agent", "viewer"] as DemoRole[]).map((role) => {
+              const isPrimary = role === "agent";
+              return (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => handleDemo(role)}
+                  disabled={locked}
+                  aria-busy={demoBusy === role}
+                  className={
+                    "flex w-full items-center justify-center gap-2 px-4 py-2 font-mono text-xs font-bold uppercase tracking-widest " +
+                    (isPrimary
+                      ? "bg-foreground text-background hover:opacity-90"
+                      : "border border-foreground bg-transparent text-foreground hover:bg-foreground hover:text-background")
+                  }
+                >
+                  {demoBusy === role && (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  )}
+                  {demoBusy === role ? "Signing in…" : DEMO_ACCOUNTS[role].label}
+                </button>
+              );
+            })}
             <p className="font-serif text-xs italic text-muted-foreground">
               Agent can triage and review. Viewer is read-only — enforced by database
               permissions, not hidden buttons.
