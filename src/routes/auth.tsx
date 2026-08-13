@@ -239,6 +239,8 @@ function AuthPage() {
         <p className="text-center font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
           New accounts start as viewer (read-only)
         </p>
+        </div>
+        )}
       </div>
     </div>
   );
