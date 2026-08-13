@@ -223,9 +223,8 @@ function EvaluationPage() {
     }
   }
 
-  const metrics = useMemo(() => computeMetrics(results ?? [], rulebook.categories as readonly string[]), [results, rulebook]);
-
   function downloadCsv() {
+
     if (!results) return;
     const header = [
       "message", "true_category", "true_priority", "true_route", "should_escalate",
