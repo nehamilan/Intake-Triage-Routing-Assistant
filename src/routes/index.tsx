@@ -1478,7 +1478,10 @@ function DecisionCard({
 
             <ReviewerField value={reviewer} onChange={onReviewerChange} />
 
-            <OverrideField label="Category">
+            <OverrideField
+              label="Category"
+              changed={draftCategory !== decision.category}
+            >
               <select
                 value={draftCategory}
                 onChange={(e) => setDraftCategory(e.target.value as Category)}
@@ -1502,7 +1505,10 @@ function DecisionCard({
               </select>
             </OverrideField>
 
-            <OverrideField label="Priority">
+            <OverrideField
+              label="Priority"
+              changed={draftPriority !== ruling.priority}
+            >
               <select
                 value={draftPriority}
                 onChange={(e) => setDraftPriority(e.target.value as Priority)}
@@ -1521,7 +1527,10 @@ function DecisionCard({
               </select>
             </OverrideField>
 
-            <OverrideField label="Route">
+            <OverrideField
+              label="Route"
+              changed={draftRoute !== ruling.finalRoute}
+            >
               <select
                 value={draftRoute}
                 onChange={(e) => setDraftRoute(e.target.value)}
@@ -1567,13 +1576,12 @@ function DecisionCard({
               onChange={setReason}
               required={overrideReasonRequired}
               helper={
-                overrideReasonRequired
-                  ? willBypassGuardrail
-                    ? "Required — explain why bypassing the safety escalation is appropriate."
-                    : "Required — explain why you are changing this decision."
-                  : "Optional — add context for the audit log."
+                willBypassGuardrail
+                  ? "Required — explain why bypassing the safety escalation is appropriate."
+                  : "Required — explain why you are changing this decision."
               }
             />
+
 
             <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
               <button
