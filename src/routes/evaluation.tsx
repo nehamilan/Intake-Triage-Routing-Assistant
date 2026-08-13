@@ -107,6 +107,13 @@ function EvaluationPage() {
   const [runError, setRunError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // All hooks must run before any conditional return so server and client
+  // renders call the same hooks in the same order.
+  const metrics = useMemo(
+    () => computeMetrics(results ?? [], rulebook.categories as readonly string[]),
+    [results, rulebook],
+  );
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -117,6 +124,7 @@ function EvaluationPage() {
   if (!user) return null;
 
   const isAgent = role === "agent";
+
 
   function handleFile(f: File) {
     setParseError(null);
@@ -215,9 +223,8 @@ function EvaluationPage() {
     }
   }
 
-  const metrics = useMemo(() => computeMetrics(results ?? [], rulebook.categories as readonly string[]), [results, rulebook]);
-
   function downloadCsv() {
+
     if (!results) return;
     const header = [
       "message", "true_category", "true_priority", "true_route", "should_escalate",

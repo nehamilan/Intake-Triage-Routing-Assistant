@@ -64,15 +64,11 @@ export function AppHeader({
   return (
     <header className="mb-8 border-b border-foreground pb-6">
       <div className="flex flex-col gap-4">
+        {/* Row 1: title (left) + controls (right) */}
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="font-serif text-2xl font-medium leading-tight text-foreground sm:text-3xl">
-              {title}
-            </h1>
-            <p className="mt-2 font-serif text-sm italic text-muted-foreground sm:text-base">
-              {subtitle}
-            </p>
-          </div>
+          <h1 className="font-serif text-2xl font-medium leading-tight text-foreground sm:text-3xl">
+            {title}
+          </h1>
 
           <div className="flex flex-wrap items-center gap-2 md:gap-3">
             <label className="flex items-center gap-1.5">
@@ -125,6 +121,12 @@ export function AppHeader({
           </div>
         </div>
 
+        {/* Row 2: subtitle */}
+        <p className="font-serif text-sm italic text-muted-foreground sm:text-base">
+          {subtitle}
+        </p>
+
+        {/* Row 3: tab nav */}
         <nav
           aria-label="Sections"
           className="flex flex-wrap gap-6 text-xs font-semibold uppercase tracking-widest"
