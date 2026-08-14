@@ -98,7 +98,9 @@ requestText ─▶ [ 1. Deterministic pre-check ]
 - **Any claim derived from attachment contents.** The prompt states the model has not seen file bytes and must not claim to have read them.
 - **A same-day embargo release date computed from a duration** (e.g. "6 months"). The prompt forbids inferring dates; only a human curator sets `YYYY-MM-DD`. `applyRules` escalates any embargo mention that lacks an exact date.
 - **An auto-route for privacy-incident or fraud text.** The pre-check short-circuits the model entirely for these, and `applyRules` re-forces escalation even if the model returns something else.
-- **Free-form text outside the JSON object.** Structured output enforces this.  
+- **Free-form text outside the JSON object.** Structured output enforces this.
+
+*Full output contract, hallucination-prevention layers, and known gaps: [Output-Guardrails.md](./Output-Guardrails.md).*
 
 ## Evaluation Approach
 
@@ -123,6 +125,8 @@ Two loops:
 
 *Missing information:* targets above are aspirational for the portfolio build; no production baseline dataset ships in the repo.
 
+*Full evaluation methodology — dataset requirements, testing tiers, failure analysis, and post-launch measurement with rollback stop-conditions: [Evaluation-Framework.md](./Evaluation-Framework.md).*
+
 ## Handling Uncertainty
 
 **What happens when the model is unsure?**
@@ -135,6 +139,8 @@ Uncertainty is treated as a first-class output, not a failure mode. Three distin
 
 Guardrails always override confidence: a high-confidence model output on a privacy-incident or fraud text is still escalated.
 
+*Full detection mechanisms and worked failure scenarios: [Uncertainty-and-Fallbacks.md](./Uncertainty-and-Fallbacks.md).*
+
 ## Human Oversight Model
 
 **Where does the human sit in the workflow?**
@@ -146,6 +152,8 @@ The human is the decision-maker; the model is a drafter.
 - Accepting an AI proposal does not require a note (the model's `reason` is already stored), but a reviewer note is optional.
 - The **Queue collapses to one row per request**; expanding a row shows a full revision timeline with field-level diffs, timestamps, reviewer name, and any guardrail-bypass acknowledgment. New revisions append; nothing is edited in place.
 - Reviewer identity comes from the authenticated Supabase session; the `classifyRequest` server function is gated by `requireSupabaseAuth` and an `agent`-role check via `has_role`.
+
+*Full review workflows step-by-step, and the automation/human task balance: [Human-in-the-Loop.md](./Human-in-the-Loop.md).*
 
 ## Risks
 
@@ -166,6 +174,8 @@ The human is the decision-maker; the model is a drafter.
 | Attachment content misuse | Model claims to have read a file. | Attachments passed as metadata only; prompt states file bytes were not read. |
 | Cross-vertical contamination | Banking rulebook applied to research data or vice versa. | `vertical` persisted per request; queue, dashboard, and evaluation filter strictly by active vertical. |
 
+*Full risk matrix with severity/likelihood scoring, implementation evidence, and residual risk per item: [Risk-Analysis.md](./Risk-Analysis.md).*
+
 ## Trade-offs
 
 **What product, technical, or business trade-offs were made?**
@@ -178,6 +188,8 @@ The human is the decision-maker; the model is a drafter.
 - **Structured output over free-form JSON parsing.** Enum-constrained schemas kill hallucinated categories at the wire, at the cost of coupling the prompt/schema to the active rulebook (regenerated per call).
 - **Append-only revision log over editable records.** Every override creates a new revision with a diff; nothing is mutated in place. Storage grows with review activity — an acceptable cost for audit integrity.
 - **Two roles today (`agent`, `viewer`).** A dedicated `auditor` role is deferred to the roadmap; audit history is currently readable by any authenticated user.
+
+*Full trade-off evidence — implementation citations and when each trade-off might change: [Product-Tradeoffs.md](./Product-Tradeoffs.md).*
 
 ## Success Criteria
 
@@ -200,3 +212,5 @@ The product is successful when:
 - **More verticals** — healthcare records, insurance claims, legal disclosures — as new rulebooks.
 - **Multi-model routing / fallback** — cheaper model for high-confidence cases, larger model for ambiguous ones.
 - **Reviewer workload analytics** on the dashboard to detect overload or drift by reviewer.
+
+*Full prioritized backlog (P0 ship-blockers through P3 operational maturity): [Roadmap.md](./Roadmap.md).*
