@@ -24,12 +24,27 @@ import { CATEGORY_LABELS, type Category } from "@/lib/rulebook";
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
-      { title: "Triage Dashboard — Evidence Layer" },
+      { title: "Triage Dashboard — Intake Triage & Routing Assistant" },
       {
         name: "description",
         content:
           "Metrics for intake triage: volume, routing distribution, escalations over time, and confidence.",
       },
+      {
+        property: "og:title",
+        content: "Triage Dashboard — Intake Triage & Routing Assistant",
+      },
+      {
+        property: "og:description",
+        content:
+          "Volume, routing mix, escalation trend and model confidence for every triaged intake request.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://triage-routing-assistant.lovable.app/dashboard" },
+      { name: "twitter:card", content: "summary" },
+    ],
+    links: [
+      { rel: "canonical", href: "https://triage-routing-assistant.lovable.app/dashboard" },
     ],
   }),
   component: DashboardPage,
