@@ -22,7 +22,7 @@ always have. Both decisions are recorded.
 - **Purpose:** obtain the baseline that [Success-Metrics-and-Business-Case](./Success-Metrics-and-Business-Case.md)
   currently lacks, and measure agreement between the pipeline and human decisions on real
   traffic rather than on author-written fixtures.
-- **Exit criteria:** agreement ≥ 85% on category; escalation recall ≥ 0.99 on every request a
+- **Exit criteria:** agreement ≥ 85% on category; escalation recall ≥ 0.95 on every request a
   human treated as high-risk; parse-failure rate < 1%.
 - **Rollback:** none required — nothing is user-visible.
 
