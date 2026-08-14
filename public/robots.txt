@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://triage-routing-assistant.lovable.app/sitemap.xml
