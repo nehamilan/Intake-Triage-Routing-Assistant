@@ -120,7 +120,7 @@ Two loops:
 | Category accuracy | Is the underlying classification correct? | > 85% |
 | Priority accuracy | Are we surfacing urgency correctly? | > 85% |
 | Escalation recall | Do risky items reach a human? | > 95% |
-| Override rate | Drift and prompt/rulebook regression signal. | < 15% |
+| Override rate | Drift and prompt/rulebook regression signal. | 10-25% |
 | Mean review time | Cycle-time impact of the assistant. | Baseline + trend |
 
 *Missing information:* targets above are aspirational for the portfolio build; no production baseline dataset ships in the repo.
