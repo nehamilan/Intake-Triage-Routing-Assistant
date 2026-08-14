@@ -12,12 +12,24 @@ import { useRulebook } from "@/hooks/use-rulebook";
 export const Route = createFileRoute("/evaluation")({
   head: () => ({
     meta: [
-      { title: "Evaluation — Accuracy against labeled test set" },
+      { title: "Evaluation — Intake Triage & Routing Assistant" },
       {
         name: "description",
         content:
           "Upload a labeled CSV and measure routing, priority, category accuracy and escalation recall.",
       },
+      { property: "og:title", content: "Evaluation — Intake Triage & Routing Assistant" },
+      {
+        property: "og:description",
+        content:
+          "Measure routing accuracy, category and priority accuracy, and escalation recall against a labeled test set.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://triage-routing-assistant.lovable.app/evaluation" },
+      { name: "twitter:card", content: "summary" },
+    ],
+    links: [
+      { rel: "canonical", href: "https://triage-routing-assistant.lovable.app/evaluation" },
     ],
   }),
   component: EvaluationPage,
