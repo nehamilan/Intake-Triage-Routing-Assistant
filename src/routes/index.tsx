@@ -77,8 +77,10 @@ export const Route = createFileRoute("/")({
           "Decision support for research data intake — a human reviews every decision.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://triage-routing-assistant.lovable.app/" },
       { name: "twitter:card", content: "summary" },
     ],
+    links: [{ rel: "canonical", href: "https://triage-routing-assistant.lovable.app/" }],
   }),
   component: RouteComponent,
 });
