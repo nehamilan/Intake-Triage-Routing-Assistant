@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ShieldAlert } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -2185,11 +2185,7 @@ function QueueView({
                           : "border border-foreground bg-background px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground transition-colors hover:bg-foreground/5"
                       }
                     >
-                      {isReviewing
-                        ? "Open…"
-                        : totalRevisions > 1
-                          ? `Open · ${totalRevisions} versions`
-                          : "Open"}
+                      {isReviewing ? "Open…" : "Open"}
                     </button>
                   </Td>
                 </tr>
@@ -2222,19 +2218,25 @@ function RevisionTimeline({
           {revisions.length} version{revisions.length === 1 ? "" : "s"}
         </span>
       </div>
-      <ol className="space-y-3">
+      <ol
+        className={
+          revisions.length > 5
+            ? "max-h-[26rem] space-y-3 overflow-y-auto pr-2"
+            : "space-y-3"
+        }
+      >
         {revisions.map((r) => {
           const isCurrent = r.id === currentId;
           const isV1 = r.revision === 1;
           const verb = r.guardrailAcknowledged
-            ? "bypassed guardrail"
+            ? `bypassed a safety guardrail on v${r.revision - 1 || 1}`
             : r.overridden
               ? isV1
-                ? "overrode AI"
-                : "overrode previous"
+                ? "overrode the AI proposal"
+                : `overrode v${r.revision - 1}`
               : isV1
-                ? "accepted"
-                : "re-accepted";
+                ? "accepted the AI proposal"
+                : `re-accepted v${r.revision - 1}`;
           return (
             <li
               key={r.id}
@@ -2254,6 +2256,17 @@ function RevisionTimeline({
                 >
                   v{r.revision}
                 </span>
+                {isCurrent ? (
+                  <span className="inline-flex items-center border border-foreground/30 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground">
+                    Current
+                  </span>
+                ) : null}
+                {r.guardrailAcknowledged ? (
+                  <span className="inline-flex items-center gap-1 border border-red-300 bg-red-50 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-red-700">
+                    <ShieldAlert className="h-3 w-3" aria-hidden="true" />
+                    Guardrail override
+                  </span>
+                ) : null}
                 <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                   {formatTime(r.timestamp)}
                 </span>
@@ -2267,7 +2280,7 @@ function RevisionTimeline({
 
               {r.guardrailAcknowledged ? (
                 <div className="mt-1 font-mono text-[10px] uppercase tracking-widest text-red-700">
-                  ⚠ Bypassed safety escalation
+                  ⚠ Reviewer knowingly bypassed a safety escalation
                 </div>
               ) : null}
 
@@ -2289,11 +2302,13 @@ function RevisionTimeline({
                       <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                         {c.field}:
                       </span>{" "}
-                      <span className="text-muted-foreground line-through">
+                      <span className="font-medium text-red-700 line-through decoration-red-700/60">
                         {c.from}
                       </span>{" "}
                       <span className="text-muted-foreground">→</span>{" "}
-                      <span className="font-medium">{c.to}</span>
+                      <span className="font-semibold text-green-700">
+                        {c.to}
+                      </span>
                     </div>
                   ))
                 )}
