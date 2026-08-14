@@ -106,7 +106,7 @@ function AuthPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <div className="w-full max-w-sm space-y-6">
+      <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
           <h1 className="font-serif text-2xl font-medium">Intake Triage</h1>
           <p className="mt-1 font-serif text-sm italic text-muted-foreground">
@@ -120,7 +120,7 @@ function AuthPage() {
           </p>
         )}
 
-        <div className="space-y-4 border border-border p-5">
+        <div className="flex flex-col items-center space-y-6 text-center">
           <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Explore instantly — no signup
           </p>
@@ -147,7 +147,7 @@ function AuthPage() {
               </button>
             );
           })}
-          <p className="font-serif text-xs italic text-muted-foreground">
+          <p className="max-w-xs font-serif text-xs italic leading-relaxed text-muted-foreground">
             Agent can triage and review. Viewer is read-only — enforced by database
             permissions, not hidden buttons. Shared demo environment — data resets periodically.
           </p>
