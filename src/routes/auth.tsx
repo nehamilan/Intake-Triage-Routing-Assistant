@@ -11,8 +11,24 @@ import { DEMO_ACCOUNTS, DEMO_PASSWORD, type DemoRole } from "@/lib/demo-accounts
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — Intake Triage" },
-      { name: "description", content: "Sign in to the Intake Triage & Routing Assistant." },
+      { title: "Sign in — Intake Triage & Routing Assistant" },
+      {
+        name: "description",
+        content:
+          "Sign in to the Intake Triage & Routing Assistant, or explore instantly with a demo agent or read-only viewer account.",
+      },
+      { property: "og:title", content: "Sign in — Intake Triage & Routing Assistant" },
+      {
+        property: "og:description",
+        content:
+          "Explore the triage demo instantly as an agent or a read-only viewer — no signup required.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://triage-routing-assistant.lovable.app/auth" },
+      { name: "twitter:card", content: "summary" },
+    ],
+    links: [
+      { rel: "canonical", href: "https://triage-routing-assistant.lovable.app/auth" },
     ],
   }),
   component: AuthPage,
