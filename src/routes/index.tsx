@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ShieldAlert } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -2185,11 +2185,7 @@ function QueueView({
                           : "border border-foreground bg-background px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-foreground transition-colors hover:bg-foreground/5"
                       }
                     >
-                      {isReviewing
-                        ? "Open…"
-                        : totalRevisions > 1
-                          ? `Open · ${totalRevisions} versions`
-                          : "Open"}
+                      {isReviewing ? "Open…" : "Open"}
                     </button>
                   </Td>
                 </tr>
