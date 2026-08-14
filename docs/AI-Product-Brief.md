@@ -9,6 +9,12 @@ description: Product brief for a safety-first AI triage assistant for regulated 
 
 The Intake Triage & Routing Assistant is a decision-support tool for teams that receive regulated, mixed-risk requests (research data access, banking complaints, and other domains that can be added via a rulebook). An LLM proposes a **category, route, priority, confidence, and reason** for each incoming message. That proposal is sandwiched between two deterministic layers — a pre-check before the model runs and a rulebook-driven `applyRules` layer after — and every proposal is a **reviewable draft**, never a final action. The model never touches attachment contents, never invents categories or routes outside the active rulebook, and never bypasses guardrails. Safety-critical routing does not depend on the model alone.
 
+## Where This Pattern Generalizes
+
+The rulebook is specific to research intake and banking complaints; the pattern underneath it is not. Unstructured input, a closed output vocabulary the model must pick from, and human review triggered by low confidence or a defined risk pattern — that shape holds regardless of domain. The same architecture describes a fintech transaction-monitoring queue: a model flags a suspicious transaction, a rules engine decides whether it's SAR-reportable, an analyst signs off before it's filed. It also describes a security operations triage queue: a model proposes a severity and category for an incoming alert, deterministic correlation rules decide whether it escalates, an analyst confirms before a ticket opens.
+
+Decision rule applied throughout this build: use an LLM when input is unstructured, the output space is constrained, and a wrong answer is recoverable through human review — that's request classification here. Use deterministic rules when the decision is enumerable, legally binding, or must be reproducible in an audit — that's every guardrail, route derivation, and escalation trigger in this system.
+
 ## Problem
 
 **What problem does this AI product solve?**
@@ -22,8 +28,8 @@ Two roles are implemented in `app_role` (`agent`, `viewer`); a third is planned.
 | Role | What they do | Access |
 |------|--------------|--------|
 | **Agent** | Triage new requests, accept or override AI proposals, add reviewer notes, finalize decisions, run evaluations. | Full triage UI, queue filters, evaluation page. |
-| **Viewer** | Monitor throughput, escalations, and routing distribution. | Read-only dashboard and queue view. |
-| **Auditor (future)** | Dedicated read-only view over the revision log, guardrail acknowledgments, and override reasons. | *Not implemented today* — the revision history table exists and is readable by any authenticated user; a dedicated role is on the roadmap. |
+| **Viewer** | Monitor throughput, escalations, and routing distribution. | Read-only dashboard |
+| **Auditor (future)** | Dedicated read-only view over the revision log, guardrail acknowledgments, and override reasons.| *Not implemented today* — the revision history table exists and is readable by any authenticated user; a dedicated role is on the roadmap. |
 
 Two verticals ship as working rulebooks: **Research Data Requests** and **Banking Complaints**. Users switch verticals at runtime; all queue, dashboard, and evaluation views filter by the active `vertical`.
 
@@ -51,7 +57,7 @@ The `route` is **not** chosen by the model. It is derived deterministically from
 - `requestText` (1–8000 chars).
 - `attachments` — metadata only: `filename`, `mimeType`, `sizeBytes`. File bytes are never read.
 - `vertical` — `research` or `banking`, selects the active rulebook.
-
+  
 **Processing (the "guardrail sandwich")**
 
 ```text
@@ -92,7 +98,7 @@ requestText ─▶ [ 1. Deterministic pre-check ]
 - **Any claim derived from attachment contents.** The prompt states the model has not seen file bytes and must not claim to have read them.
 - **A same-day embargo release date computed from a duration** (e.g. "6 months"). The prompt forbids inferring dates; only a human curator sets `YYYY-MM-DD`. `applyRules` escalates any embargo mention that lacks an exact date.
 - **An auto-route for privacy-incident or fraud text.** The pre-check short-circuits the model entirely for these, and `applyRules` re-forces escalation even if the model returns something else.
-- **Free-form text outside the JSON object.** Structured output enforces this.
+- **Free-form text outside the JSON object.** Structured output enforces this.  
 
 ## Evaluation Approach
 
@@ -177,8 +183,8 @@ The human is the decision-maker; the model is a drafter.
 
 The product is successful when:
 
-- Routing accuracy and escalation recall meet the targets above on a representative labeled set for each vertical.
-- Override rate stays below 15% and trends flat or down over time (no silent regression).
+- Routing accuracy and escalation recall meet the targets in the Evaluation Approach table, on a representative labeled set for each vertical.
+- Override rate stays within the target in the Evaluation Approach table and trends flat or down over time (no silent regression).
 - Zero privacy-incident, fraud, or restricted-access items are auto-routed in production — every such item lands in Human Review with a flag.
 - Reviewer cycle time is lower than the manual baseline, at equal or better accuracy.
 - Every finalized decision is traceable end-to-end: original text, AI draft, guardrail flags, reviewer identity, override reason, and any guardrail-bypass acknowledgment are all present in the revision log.
