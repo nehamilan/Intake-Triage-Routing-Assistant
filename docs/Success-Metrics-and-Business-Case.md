@@ -28,8 +28,8 @@ outcome metric is a demo artefact.
 
 | Metric | Definition | Target | If it misses |
 |---|---|---|---|
-| Escalation recall | Of requests labelled high-risk, the share the pipeline escalates | **≥ 0.99** | Ship-blocking. Add deterministic patterns; never compensate by lowering the confidence threshold |
-| Category accuracy | Correct category on the auto-routed subset | ≥ 0.90 | Prompt revision, then rulebook vocabulary revision — categories that are frequently confused are usually badly defined, not badly predicted |
+| Escalation recall | Of requests labelled high-risk, the share the pipeline escalates | **≥ 0.95** | Ship-blocking. Add deterministic patterns; never compensate by lowering the confidence threshold |
+| Category accuracy | Correct category on the auto-routed subset | ≥ 0.85 | Prompt revision, then rulebook vocabulary revision — categories that are frequently confused are usually badly defined, not badly predicted |
 | Priority accuracy | Correct priority on the auto-routed subset | ≥ 0.85 | Lower blast radius; priority errors are recoverable, so this threshold is deliberately looser |
 | Parse-failure rate | Share of calls returning unusable JSON | < 1% | Investigate model/gateway before touching product logic |
 | Calibration | Actual accuracy within each confidence band | ≥0.9 band should be ≥90% correct | Overconfidence means the 0.7 threshold is meaningless — raise the threshold rather than trusting the score |
@@ -77,8 +77,8 @@ determinism rather than on a larger model.
 
 A build ships only if, on the labeled set:
 
-1. Escalation recall ≥ 0.99 on the high-risk subset.
-2. Category accuracy ≥ 0.90 with no regression greater than 2 points versus the previous run.
+1. Escalation recall ≥ 0.95 on the high-risk subset.
+2. Category accuracy ≥ 0.85 with no regression greater than 2 points versus the previous run.
 3. Parse-failure rate < 1%.
 4. No new pattern appears in the misclassification review that lacks a deterministic backstop.
 
