@@ -110,7 +110,7 @@ function AuthPage() {
         <div className="text-center">
           <h1 className="font-serif text-2xl font-medium">Intake Triage</h1>
           <p className="mt-1 font-serif text-sm italic text-muted-foreground">
-            Explore the demo — no signup required
+            Sign in to continue.
           </p>
         </div>
 
@@ -120,7 +120,7 @@ function AuthPage() {
           </p>
         )}
 
-        <div className="space-y-2 border border-border p-3">
+        <div className="space-y-4 border border-border p-5">
           <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Explore instantly — no signup
           </p>
