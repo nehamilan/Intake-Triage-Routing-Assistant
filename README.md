@@ -1,8 +1,13 @@
 # Intake Triage & Routing Assistant
 
-A **reviewed first draft** for every incoming request in a regulated intake operation. An LLM proposes a category, priority, routing destination, one-line reason, and confidence score. Deterministic rules run **before and after** the model to catch safety-critical cases. A human reviews every decision and can override it, with a full audit log.
+A **reviewed first draft** for every incoming request in a regulated intake operation. An LLM proposes a category, priority, routing destination, one-line reason, and confidence score. Deterministic rules run before and after the model to catch safety-critical cases. A human reviews every decision and can override it, with a full audit log.
 
-Two verticals ship in the box — **research data requests** and **banking complaints** — to demonstrate that the same architecture powers different regulated domains by swapping a rulebook, not by rewriting code. The same pattern extends naturally to **healthcare intake, insurance claims, legal case intake, HR ER cases**, and any other domain where mis-routing has real consequences.
+Two verticals ship in the box — **research data requests** and **banking complaints** — to demonstrate that the same architecture powers different regulated domains by swapping a rulebook, not by rewriting code. The same pattern extends naturally to healthcare intake, insurance claims, legal case intake, HR ER cases, and any other domain where mis-routing has real consequences.
+
+---
+## Live demo
+
+[Try it live](https://triage-routing-assistant.lovable.app) — sign-in is one click as either Agent (triage and review) or Viewer (read-only), no signup required. Both demo accounts share a database that resets periodically.
 
 ---
 
@@ -57,7 +62,7 @@ Layers 1 and 3 are pure functions with no network calls, no model dependency, an
 2. Register it in the `RULEBOOKS` map and add a label to the header vertical switcher.
 3. If the domain has date-bound obligations analogous to embargoes (release dates, HIPAA disclosure deadlines), extend `src/lib/embargo.ts` or add a sibling detector — the post-rules layer picks it up automatically.
 4. Seed `src/lib/sample-requests.ts` with realistic domain examples covering each category and each guardrail.
-5. Upload a labeled CSV to the **Evaluation** page to measure routing/priority/category accuracy and — the number that matters — **escalation recall** on the high-risk subset.
+5. Upload a labeled CSV to the Evaluation page to measure routing/priority/category accuracy and — the number that matters — escalation recall on the high-risk subset.
 
 No changes to the classifier, the review UI, the persistence layer, the dashboard, or the auth model are required. The two shipped verticals (`research_data_requests`, `banking_complaints`) are the reference implementation of this pattern.
 
@@ -69,8 +74,9 @@ No changes to the classifier, the review UI, the persistence layer, the dashboar
 - **Queue** — one row per request with an internal revision timeline (v1, v2, v3…), per-field diffs, reviewer name, timestamp, and (for safety-rule overrides) an acknowledgement record. Sortable by time and priority; filterable by status, route, priority, and vertical.
 - **Dashboard** — KPI cards, category volume, routing distribution, auto-routed vs escalated over time, escalation-reason breakdown. All metrics scoped to the active vertical.
 - **Evaluation** — upload labeled CSV, run the full pipeline, get accuracy per axis + confusion matrix + escalation recall, download results.
-- **Roles** — `agent` (triage + review) and `viewer` (read-only dashboard). Server functions enforce auth; RLS enforces it at the database.
-- **Vertical switcher, dark mode, keyboard submit, toast notifications, accessible badges.**
+- **Roles** — `agent` (triage + review) and `viewer` (read-only). Server functions enforce auth; RLS enforces it at the database.
+
+Also: vertical switcher, dark mode, keyboard submit, toast notifications, accessible badges.
 
 ---
 
@@ -78,11 +84,11 @@ No changes to the classifier, the review UI, the persistence layer, the dashboar
 
 - **TanStack Start v1** on Vite 7, React 19, TypeScript, Tailwind v4
 - **Lovable Cloud** (Postgres + Auth + RLS) for persistence and identity
-- **Lovable AI Gateway** (Gemini-1.5-Flash) for the classifier — swappable via one server file
+- **Lovable AI Gateway** (`google/gemini-3-flash-preview`) for the classifier — swappable via `ai-gateway.server.ts`
 - **Recharts** for the evidence layer
 - **shadcn/ui** primitives
 
-Deterministic layers (`apply-rules.ts`, `embargo.ts`, pre-check patterns in `classify-request.functions.ts`, `rulebook.ts`) are plain TypeScript with no framework coupling and could be extracted as a package.
+Deterministic layers (`apply-rules.ts`, `embargo.ts`, `attachments.ts`, pre-check patterns in `classify-request.functions.ts`, `rulebook.ts`) are plain TypeScript with no framework coupling and could be extracted as a package.
 
 ---
 
@@ -105,19 +111,20 @@ src/
   lib/
     rulebook.ts                  ← the closed vocabulary — this is what you edit per vertical
     classify-request.functions.ts← server function: pre-checks + LLM call + safe parsing
+    ai-gateway.server.ts         ← AI Gateway provider factory (server-only) — swap models here
     apply-rules.ts               ← deterministic post-rules (confidence, guardrails, embargo, parse-failure)
-    embargo.ts                   ← YYYY-MM-DD extractor used by Guardrail C
+    embargo.ts                   ← YYYY-MM-DD extractor used by Guardrail
+    attachments.ts               ← attachment-mismatch guardrail (metadata only, never file bytes)
     queue-db.ts                  ← persistence + revision log
     sample-requests.ts           ← domain fixtures
   routes/
     index.tsx                    ← triage + queue
     dashboard.tsx                ← evidence layer
     evaluation.tsx               ← accuracy harness
-    auth.tsx, _authenticated/    ← identity + role gates
+    auth.tsx, _authenticated/    ← demo sign-in + role gates
   components/
     AuthGate.tsx, AccountMenu.tsx, ui/ (shadcn)
-PRODUCT_ANALYSIS.md              ← case-study writeup (problem, users, risks, trade-offs, roadmap)
-project_specs.md                 ← full spec, tier by tier
+docs/                            ← problem framing, decision design, guardrails, evaluation, risk, trade-offs, decision log, and more — see docs/README.md
 ```
 
 ---
@@ -128,12 +135,11 @@ project_specs.md                 ← full spec, tier by tier
 - Not a replacement for human reviewers — it is a decision-support layer measured by how well it protects them from routine work while surfacing the risky items.
 - Not a "trust the AI" product — the entire architecture is designed so that a failed, slow, or hallucinating model degrades to human review, never to a wrong auto-route.
 
-For the full case study (problem framing, user model, risk analysis, trade-offs, roadmap), see [`PRODUCT_ANALYSIS.md`](./PRODUCT_ANALYSIS.md).
+This is a reference implementation, not a production deployment — see [`Risk-Analysis`](./docs/Risk-Analysis.md) for the honest gaps (no committed golden test set, guardrails are substring matching, post-rules run client-side, no cost/latency instrumentation).
 
 ## Product documentation
 
-Full product documentation lives in [`docs/`](./docs/README.md) — problem framing, discovery
-and unvalidated assumptions, decision design, guardrails, evaluation and release gates,
-launch and rollout, operations runbook, data governance, risk register, trade-offs, and a
-decision log of the options that were rejected.
+Start with [`AI-Product-Brief.md`](./docs/AI-Product-Brief.md) — problem, AI decision design, guardrails, evaluation targets, uncertainty handling, human oversight, risks, and trade-offs in one document.
+
+The rest of `docs/` covers discovery and unvalidated assumptions, launch and rollout, operations runbook, data governance, success metrics and business case, and a decision log of the options that were rejected. Full index at [`README.md`](./README.md)
 
