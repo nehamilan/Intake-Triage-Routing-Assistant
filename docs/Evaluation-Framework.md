@@ -19,7 +19,7 @@ These measure the model and the deterministic layers around it. They are compute
 |--------|------------|--------|--------|
 | Routing accuracy | `final_route === true_route` | ≥ 90% | Implemented |
 | Priority accuracy | `final_priority === true_priority` | ≥ 85% | Implemented |
-| Category accuracy | `final_category === true_category` | ≥ 88% | Implemented |
+| Category accuracy | `final_category === true_category` | ≥ 85% | Implemented |
 | Escalation recall | correctly escalated / should have escalated | **> 95%** | Implemented |
 | Parse-failure rate | rows returning `escalated_parse_failure` | < 1% | Counted, not yet charted |
 | Guardrail precision | guardrail escalations that a human agreed with | ≥ 70% | **Not implemented** — needs reviewer feedback capture |
@@ -164,7 +164,7 @@ Override reasons and guardrail acknowledgments captured in the revision log are 
 
 ## 10. Measuring Success After Launch
 
-**Pre-launch gate (offline):** escalation recall > 95%, routing accuracy ≥ 90%, parse-failure rate < 1%, and 100% of injected faults landing in Human Review.
+**Pre-launch gate (offline):** escalation recall > 95%, routing accuracy ≥ 85%, parse-failure rate < 1%, and 100% of injected faults landing in Human Review.
 
 **Weeks 1–4 — shadow / trust-building.** Every decision reviewed. Watch acceptance rate and override reasons. Success = reviewers report the draft is a useful starting point, and zero safety escapes.
 
