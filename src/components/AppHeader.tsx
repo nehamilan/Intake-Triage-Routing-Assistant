@@ -134,17 +134,21 @@ export function AppHeader({
           className="flex flex-wrap gap-6 text-xs font-semibold uppercase tracking-widest"
         >
           {localTab("triage", "Triage")}
-          {localTab(
-            "queue",
-            <>
-              Queue
-              {queueCount > 0 ? (
-                <span className="ml-1.5 rounded-sm bg-foreground px-1.5 py-0.5 font-mono text-[9px] text-background">
-                  {queueCount}
-                </span>
-              ) : null}
-            </>,
-          )}
+          {/* Queue is an agent-only surface: viewers have no review actions
+              there, so the tab is hidden rather than shown as a dead link. */}
+          {role === "agent"
+            ? localTab(
+                "queue",
+                <>
+                  Queue
+                  {queueCount > 0 ? (
+                    <span className="ml-1.5 rounded-sm bg-foreground px-1.5 py-0.5 font-mono text-[9px] text-background">
+                      {queueCount}
+                    </span>
+                  ) : null}
+                </>,
+              )
+            : null}
           <Link
             to="/dashboard"
             aria-current={active === "dashboard" ? "page" : undefined}
