@@ -8,7 +8,7 @@ export function AboutPanel() {
   return (
     <section
       aria-label="About this system"
-      className="mt-10 border border-dashed border-border bg-card/40"
+      className="mt-6 border border-dashed border-border bg-card/40"
     >
       <button
         type="button"

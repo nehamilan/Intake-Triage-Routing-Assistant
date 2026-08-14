@@ -271,7 +271,7 @@ function EvaluationPage() {
             Your current role is <b>{role ?? "none"}</b>. Ask an admin to grant agent access.
           </div>
         ) : (
-          <main className="flex-1 space-y-8">
+          <main className="space-y-6">
             {/* Upload / controls */}
             <section className="border border-border p-4 sm:p-6">
               <h2 className="mb-2 font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
